@@ -106,8 +106,9 @@ location is never identical:
 
 - **Clock-in ALWAYS earlier, clock-out ALWAYS later**, with randomness inside
   those bounds. Guaranteed by construction: `targetIn = shiftStart −
-  random(earlyIn.min..earlyIn.max)`, `targetOut = shiftEnd +
-  random(lateOut.min..lateOut.max)`, magnitudes clamped ≥1 (see `config.ts`).
+  (reactionBufferMin + random(earlyIn.min..earlyIn.max))` (so the first attempt
+  is always before `escalateInAt`), `targetOut = shiftEnd +
+  random(lateOut.min..lateOut.max)`, magnitudes clamped ≥1 (see `scheduler.ts`).
 - **Reaction buffer for failures:** clock-in is time-critical. Keep a buffer so
   the user can punch manually if automation fails.
   - Attempt clock-in early (the earliness is buffer) and **retry** on each cron

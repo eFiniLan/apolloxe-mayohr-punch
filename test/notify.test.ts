@@ -28,6 +28,11 @@ describe("notify", () => {
     await notify({ ...cfg, notifyOnFailure: false }, { level: "failure", subject: "S", body: "B" }, f as any);
     expect(f).not.toHaveBeenCalled();
   });
+  it("always sends an urgent alert even when both toggles are off", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 200 }));
+    await notify({ ...cfg, notifyOnSuccess: false, notifyOnFailure: false }, { level: "urgent", subject: "🚨", body: "punch manually" }, f as any);
+    expect(f).toHaveBeenCalledOnce();
+  });
   it("throws when Resend returns non-2xx status", async () => {
     const f = vi.fn(async () => new Response("bad", { status: 500 }));
     await expect(notify(cfg, { level: "failure", subject: "S", body: "B" }, f as any)).rejects.toThrow(/500/);

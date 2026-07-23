@@ -17,16 +17,14 @@ export interface Config {
   longitude: string;
   gpsJitterMeters: number;
   punchesLocationId: string; // office punch location (from locations/EnableList)
-  // Jitter, expressed as POSITIVE magnitudes so direction is guaranteed:
-  //   clock-IN  = shiftStart − random(earlyIn.min..earlyIn.max)  → always EARLY
-  //   clock-OUT = shiftEnd   + random(lateOut.min..lateOut.max)  → always LATE
-  // min is clamped to ≥1 so it is never exactly on the scheduled boundary.
+  // Jitter magnitudes (positive, min clamped ≥1). The scheduler computes:
+  //   clock-IN  = shiftStart − (reactionBufferMin + random(earlyIn))  → always EARLY (and before escalateInAt)
+  //   clock-OUT = shiftEnd   + random(lateOut)                        → always LATE
   earlyIn: { min: number; max: number };
   lateOut: { min: number; max: number };
   // If still not clocked in by (shiftStart − reactionBufferMin), send an urgent
   // "punch manually" email while the Worker keeps retrying — leaves you time to react.
   reactionBufferMin: number;
-  windows: { morningStart: string; morningEnd: string; eveningStart: string; eveningEnd: string };
   respectLeave: boolean;
   notifyOnSuccess: boolean;
   notifyOnFailure: boolean;
@@ -79,12 +77,6 @@ export function loadConfig(env: Env): Config {
     earlyIn: band(env, "PUNCH_EARLY_IN_MIN", "PUNCH_EARLY_IN_MAX", 1, 15),
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
     reactionBufferMin: Math.max(0, num(env, "REACTION_BUFFER_MIN", 10)),
-    windows: {
-      morningStart: opt(env, "WINDOW_MORNING_START", "08:00"),
-      morningEnd: opt(env, "WINDOW_MORNING_END", "09:30"),
-      eveningStart: opt(env, "WINDOW_EVENING_START", "17:30"),
-      eveningEnd: opt(env, "WINDOW_EVENING_END", "19:30"),
-    },
     respectLeave: bool(env, "RESPECT_LEAVE", false),
     notifyOnSuccess: bool(env, "NOTIFY_ON_SUCCESS", true),
     notifyOnFailure: bool(env, "NOTIFY_ON_FAILURE", true),

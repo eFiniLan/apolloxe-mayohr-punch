@@ -104,7 +104,7 @@ export async function runScheduler(env: Env, deps?: Partial<Deps>): Promise<void
     // --- Clock-in escalation (after the attempt) --------------------------
     if (!plan.inDone && !plan.escalatedIn && hhmm >= plan.escalateInAt) {
       await notify(cfg, {
-        level: "failure",
+        level: "urgent",
         subject: "🚨 Apollo clock-in NOT done — punch manually",
         body: `Not clocked in by ${plan.escalateInAt}; punch manually now. Worker still retrying.`,
       });

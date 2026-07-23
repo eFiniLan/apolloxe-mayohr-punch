@@ -11,8 +11,8 @@ id = "REPLACE_WITH_KV_ID"
 # to actually punch, so weekends/holidays self-skip after one cheap check.
 #   00:00–01:55 UTC = 08:00–09:55 Taipei  → plan build + clock-in + escalation
 #   10:00–11:55 UTC = 18:00–19:55 Taipei  → clock-out
-# (Aligns with default shift 09:30/18:30 + early-in/late-out jitter. If you change
-#  WINDOW_* / shift times, widen these accordingly.)
+# (Aligns with default shift 09:30/18:30 + early-in/late-out jitter. If your shift
+#  is much earlier/later, widen these UTC windows to cover it.)
 [triggers]
 crons = ["*/5 0-1 * * *", "*/5 10-11 * * *"]
 
