@@ -57,11 +57,39 @@ Per-day entry fields that matter:
   entry whose `[start,end]` **covers the whole shift** ⇒ full-day off (skip).
   A partial entry ⇒ (default policy) still punch at scheduled shift times.
 
-## Punch — PENDING (capture needed)
+## Punch — CONFIRMED (GPS `/locate` endpoint, NOT IP-gated)
 
-Cookie auth (`__ModuleSessionCookie`). `AttendanceType` **1 = clock-in, 2 = clock-out**
-(confirmed by repos). Endpoint/host/exact body fields for THIS account still need
-the real clock-out cURL. Response envelope expected `{ Meta: { HttpStatusCode }, Data: {...} }`.
+There are two punch endpoints, both cookie-auth (`__ModuleSessionCookie`):
+- `POST …/backend/pt/api/checkIn/punch/web` — **IP-gated** (`SH_NonAuthorisedIP`
+  from any non-office IP). No GPS in body. Useless for a cloud Worker unless it
+  routes through the office VPN. Body `{AttendanceType, ExtendWorkHourType,
+  CheckInTimeoutType, CheckInPersonalReasonTypeId, CheckInPersonalReason}`.
+- **`POST …/backend/pt/api/checkIn/punch/locate` — GPS-gated, NOT IP-gated.**
+  Confirmed working from a non-office IP (schema test returned a business-logic
+  error, never `SH_NonAuthorisedIP`). **This is the endpoint the Worker uses.**
+
+`/locate` request (JSON body, cookie auth, `content-type: application/json`):
+```json
+{
+  "AttendanceType": 1,          // 1 = clock-in, 2 = clock-out (confirmed)
+  "Latitude": 25.0781415,        // office coords + small per-punch jitter
+  "Longitude": 121.5703676,
+  "PunchesLocationId": "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1",  // 台北辦公室 (L001)
+  "IdentifyCode": "<random uuid>",   // client-generated; a fresh crypto.randomUUID() is ACCEPTED
+  "LocationDetails": ""          // optional
+}
+```
+- Confirmed via a schema test (0,0 coords) that returned `PT_TodayHasCheckInRecords`
+  — i.e. the full body validated and it only stopped at the already-clocked-in
+  check. Field names + random IdentifyCode confirmed accepted.
+- Punch locations: `GET …/backend/pt/api/locations/EnableList` →
+  `Data[{PunchesLocationId, LocationCode, LocationName}]`. Office = L001.
+- Server-side idempotency: rejects a duplicate clock-in (`PT_TodayHasCheckInRecords`)
+  and presumably clock-out — a second safety net beyond our KV flags.
+- Geofence radius not directly read, but the office radius (`radiusofEffectiveRange`)
+  far exceeds the ±12 m GPS jitter, so jitter stays in-bounds. Always send the
+  real office coords.
+- Response envelope `{ Meta: { HttpStatusCode }, Data: {...} }`.
 
 **GPS is required (user-confirmed).** The punch carries the office coordinates,
 and each punch must apply a small random shift around the fixed point so the
