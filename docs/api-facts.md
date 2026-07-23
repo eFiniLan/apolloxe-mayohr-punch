@@ -59,11 +59,20 @@ Per-day entry fields that matter:
 
 ## Punch — PENDING (capture needed)
 
-Likely `POST …/backend/pt/api/checkIn/punch/web` (or a platform-bff equivalent),
-cookie auth (`__ModuleSessionCookie`), JSON body `{ "AttendanceType": 1|2 }`
-(**1 = clock-in, 2 = clock-out**, confirmed by repos). No GPS fields seen in the
-web-punch path. To confirm the exact endpoint/host/body for THIS account: capture
-a real clock-out cURL. Response envelope expected `{ Meta: { HttpStatusCode }, Data: {...} }`.
+Cookie auth (`__ModuleSessionCookie`). `AttendanceType` **1 = clock-in, 2 = clock-out**
+(confirmed by repos). Endpoint/host/exact body fields for THIS account still need
+the real clock-out cURL. Response envelope expected `{ Meta: { HttpStatusCode }, Data: {...} }`.
+
+**GPS is required (user-confirmed).** The punch carries the office coordinates,
+and each punch must apply a small random shift around the fixed point so the
+location is never identical:
+- Fixed point: `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` (config; default 25.0781415 / 121.5703676).
+- Jitter: a uniform random point within `GPS_JITTER_METERS` (config, default 12 m)
+  of the fixed point. Convert meters→degrees: `dLat = r·cosθ / 111320`,
+  `dLng = r·sinθ / (111320·cos(lat))`, with `r = meters·√U`, `θ = 2π·U` (U~Uniform[0,1)).
+- The clock-out cURL will reveal the exact field names (`Latitude`/`Longitude`?)
+  and whether `PunchesLocationId` / `IdentifyCode` are required — add those to
+  config once known.
 
 ## Scheduling / timing requirements (from user — bake into the scheduler, Task 9)
 
