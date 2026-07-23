@@ -21,6 +21,7 @@ describe("loadConfig", () => {
     expect(c.latitude).toBe("25.0781415");
     expect(c.longitude).toBe("121.5703676");
     expect(c.gpsJitterMeters).toBe(12);
+    expect(c.punchesLocationId).toBe("0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1");
   });
 
   it("throws when a required secret is missing", () => {

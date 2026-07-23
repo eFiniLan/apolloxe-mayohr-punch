@@ -16,6 +16,7 @@ export interface Config {
   latitude: string;
   longitude: string;
   gpsJitterMeters: number;
+  punchesLocationId: string; // office punch location (from locations/EnableList)
   // Jitter, expressed as POSITIVE magnitudes so direction is guaranteed:
   //   clock-IN  = shiftStart − random(earlyIn.min..earlyIn.max)  → always EARLY
   //   clock-OUT = shiftEnd   + random(lateOut.min..lateOut.max)  → always LATE
@@ -70,6 +71,7 @@ export function loadConfig(env: Env): Config {
     latitude: opt(env, "PUNCH_LATITUDE", "25.0781415"),
     longitude: opt(env, "PUNCH_LONGITUDE", "121.5703676"),
     gpsJitterMeters: num(env, "GPS_JITTER_METERS", 12),
+    punchesLocationId: opt(env, "PUNCHES_LOCATION_ID", "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1"),
     earlyIn: band(env, "PUNCH_EARLY_IN_MIN", "PUNCH_EARLY_IN_MAX", 1, 15),
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
     windows: {
