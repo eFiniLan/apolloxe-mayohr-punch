@@ -8,11 +8,11 @@ describe("notify", () => {
     const f = vi.fn(async () => new Response("{}", { status: 200 }));
     await notify(cfg, { level: "success", subject: "S", body: "B" }, f as any);
     expect(f).toHaveBeenCalledOnce();
-    const [url, init] = f.mock.calls[0];
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.resend.com/emails");
     expect((init.headers as any).Authorization).toBe("Bearer re_x");
     expect((init.headers as any)["content-type"]).toBe("application/json");
-    const sent = JSON.parse(init.body);
+    const sent = JSON.parse(init.body as string);
     expect(sent.to).toBe("me@x.com");
     expect(sent.subject).toBe("S");
     expect(sent.from).toBe("bot@x.com");
