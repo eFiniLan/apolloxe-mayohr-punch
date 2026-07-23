@@ -1,0 +1,101 @@
+{
+  "_comment": "Real subset captured from probe/probe.mjs against the live account (redacted to representative days). Times are UTC ISO; Asia/Taipei = UTC+8.",
+  "data": {
+    "schedulingStatus": 0,
+    "calendars": [
+      {
+        "date": "2026-07-03T00:00:00Z",
+        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftSchedule": {
+          "workSlots": [
+            { "type": 1, "startTime": "2026-07-03T00:13:00Z", "endTime": "2026-07-03T04:30:00Z", "tags": [] },
+            { "type": 1, "startTime": "2026-07-03T05:30:00Z", "endTime": "2026-07-03T09:13:00Z", "tags": [] }
+          ],
+          "shiftScheduleName": "常日班",
+          "isWorkTimeChanged": false,
+          "workOnTime": "2026-07-03T00:13:00Z",
+          "workOffTime": "2026-07-03T09:13:00Z",
+          "originalWorkOnTime": "2026-07-03T01:30:00Z",
+          "originalWorkOffTime": "2026-07-03T10:30:00Z",
+          "restMinutes": 60
+        },
+        "calendarEvent": null,
+        "leaveSheets": [
+          {
+            "leaveRequestFormId": "f0acd37c-6e35-4e13-81f0-121a897772e4",
+            "leaveStartDatetime": "2026-07-03T05:30:00Z",
+            "leaveEndDatetime": "2026-07-03T07:30:00Z",
+            "status": 50,
+            "leaveNames": ""
+          }
+        ],
+        "overtimeSheets": [],
+        "tripSheets": [],
+        "schedulingStatus": 1
+      },
+      {
+        "date": "2026-07-04T00:00:00Z",
+        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftSchedule": {
+          "workSlots": [],
+          "shiftScheduleName": "常日班",
+          "isWorkTimeChanged": false,
+          "workOnTime": null,
+          "workOffTime": null,
+          "originalWorkOnTime": null,
+          "originalWorkOffTime": null,
+          "restMinutes": 0
+        },
+        "calendarEvent": null,
+        "leaveSheets": [],
+        "overtimeSheets": [],
+        "tripSheets": [],
+        "schedulingStatus": 1
+      },
+      {
+        "date": "2026-07-23T00:00:00Z",
+        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftSchedule": {
+          "workSlots": [
+            { "type": 1, "startTime": "2026-07-23T00:51:00Z", "endTime": "2026-07-23T04:30:00Z", "tags": [] },
+            { "type": 1, "startTime": "2026-07-23T05:30:00Z", "endTime": "2026-07-23T09:51:00Z", "tags": [] }
+          ],
+          "shiftScheduleName": "常日班",
+          "isWorkTimeChanged": false,
+          "workOnTime": "2026-07-23T00:51:00Z",
+          "workOffTime": "2026-07-23T09:51:00Z",
+          "originalWorkOnTime": "2026-07-23T01:30:00Z",
+          "originalWorkOffTime": "2026-07-23T10:30:00Z",
+          "restMinutes": 60
+        },
+        "calendarEvent": null,
+        "leaveSheets": [],
+        "overtimeSheets": [],
+        "tripSheets": [],
+        "schedulingStatus": 1
+      },
+      {
+        "date": "2026-07-24T00:00:00Z",
+        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftSchedule": {
+          "workSlots": [
+            { "type": 1, "startTime": "2026-07-24T01:30:00Z", "endTime": "2026-07-24T04:30:00Z", "tags": [] },
+            { "type": 1, "startTime": "2026-07-24T05:30:00Z", "endTime": "2026-07-24T10:30:00Z", "tags": [] }
+          ],
+          "shiftScheduleName": "常日班",
+          "isWorkTimeChanged": false,
+          "workOnTime": "2026-07-24T01:30:00Z",
+          "workOffTime": "2026-07-24T10:30:00Z",
+          "originalWorkOnTime": null,
+          "originalWorkOffTime": null,
+          "restMinutes": 60
+        },
+        "calendarEvent": null,
+        "leaveSheets": [],
+        "overtimeSheets": [],
+        "tripSheets": [],
+        "schedulingStatus": 1
+      }
+    ]
+  }
+}
