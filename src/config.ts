@@ -23,6 +23,9 @@ export interface Config {
   // min is clamped to ≥1 so it is never exactly on the scheduled boundary.
   earlyIn: { min: number; max: number };
   lateOut: { min: number; max: number };
+  // If still not clocked in by (shiftStart − reactionBufferMin), send an urgent
+  // "punch manually" email while the Worker keeps retrying — leaves you time to react.
+  reactionBufferMin: number;
   windows: { morningStart: string; morningEnd: string; eveningStart: string; eveningEnd: string };
   respectLeave: boolean;
   notifyOnSuccess: boolean;
@@ -71,9 +74,11 @@ export function loadConfig(env: Env): Config {
     latitude: opt(env, "PUNCH_LATITUDE", "25.0781415"),
     longitude: opt(env, "PUNCH_LONGITUDE", "121.5703676"),
     gpsJitterMeters: num(env, "GPS_JITTER_METERS", 12),
+    // default = 台北辦公室 (Taipei office, L001); change via scripts/list-locations.mjs
     punchesLocationId: opt(env, "PUNCHES_LOCATION_ID", "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1"),
     earlyIn: band(env, "PUNCH_EARLY_IN_MIN", "PUNCH_EARLY_IN_MAX", 1, 15),
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
+    reactionBufferMin: Math.max(0, num(env, "REACTION_BUFFER_MIN", 10)),
     windows: {
       morningStart: opt(env, "WINDOW_MORNING_START", "08:00"),
       morningEnd: opt(env, "WINDOW_MORNING_END", "09:30"),
