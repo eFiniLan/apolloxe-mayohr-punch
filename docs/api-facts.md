@@ -121,7 +121,28 @@ location is never identical:
 - Config to add when building Task 9: `reactionBufferMin` (default 10). Consider
   raising `earlyIn` defaults so the first attempt has inherent buffer.
 
-## Attendance read-back — PENDING
+## Punch response — CONFIRMED (a real clock-out succeeded)
 
-Endpoint that lists a day's actual punch records (for verify). URL + shape TBD
-(one read-only XHR URL from the attendance page will settle it).
+A real `/locate` clock-out from a non-office IP returned:
+```json
+{ "Meta": { "HttpStatusCode": "200" },
+  "Data": { "AttendanceHistoryId": "…", "punchDate": "2026-07-23T11:07:11+00:00",
+            "LocationName": "台北辦公室", "Note": "" } }
+```
+So the punch is **self-verifying**: `Meta.HttpStatusCode === "200"` + a `Data.AttendanceHistoryId`
+IS the confirmation. **No separate read-back endpoint is needed** — `verify` is
+just interpreting the punch response.
+
+### Punch result handling (for the scheduler)
+- `Meta.HttpStatusCode === "200"` with `AttendanceHistoryId` → SUCCESS (email quotes
+  `Data.punchDate` + `LocationName`).
+- `Error.Status === "PT_TodayHasCheckInRecords"` / a clock-out duplicate → treat as
+  **already done / success** (idempotent), mark the KV flag, do NOT alert.
+- `Error.Status === "SH_NonAuthorisedIP"` → only happens on `/web`; must never occur
+  on `/locate`. If it ever does, alert.
+- Any other `Error` / non-200 → FAILURE (alert email; retry next fire).
+
+### GPS jitter (confirmed accepted)
+Uniform point within `gpsJitterMeters` of the office, rounded to 7 decimals:
+`r = meters·√U; θ = 2π·U; dLat = r·cosθ/111320; dLng = r·sinθ/(111320·cos(lat))`.
+A jittered pair (25.0781332, 121.5702674, ~12 m off) was accepted in-geofence.
