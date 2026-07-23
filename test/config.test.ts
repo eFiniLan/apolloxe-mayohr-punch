@@ -18,6 +18,9 @@ describe("loadConfig", () => {
     expect(c.dryRun).toBe(false);
     expect(c.respectLeave).toBe(false);
     expect(c.userAgent).toContain("Mozilla/5.0");
+    expect(c.latitude).toBe("25.0781415");
+    expect(c.longitude).toBe("121.5703676");
+    expect(c.gpsJitterMeters).toBe(12);
   });
 
   it("throws when a required secret is missing", () => {

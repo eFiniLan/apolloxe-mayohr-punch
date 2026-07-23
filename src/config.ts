@@ -11,6 +11,11 @@ export interface Config {
   notifyTo: string;
   notifyFrom: string;
   userAgent: string;
+  // GPS: the fixed office point, plus a small random shift applied per punch so
+  // the reported location is never byte-identical (looks like real phone noise).
+  latitude: string;
+  longitude: string;
+  gpsJitterMeters: number;
   // Jitter, expressed as POSITIVE magnitudes so direction is guaranteed:
   //   clock-IN  = shiftStart − random(earlyIn.min..earlyIn.max)  → always EARLY
   //   clock-OUT = shiftEnd   + random(lateOut.min..lateOut.max)  → always LATE
@@ -62,6 +67,9 @@ export function loadConfig(env: Env): Config {
       "USER_AGENT",
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
     ),
+    latitude: opt(env, "PUNCH_LATITUDE", "25.0781415"),
+    longitude: opt(env, "PUNCH_LONGITUDE", "121.5703676"),
+    gpsJitterMeters: num(env, "GPS_JITTER_METERS", 12),
     earlyIn: band(env, "PUNCH_EARLY_IN_MIN", "PUNCH_EARLY_IN_MAX", 1, 15),
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
     windows: {
