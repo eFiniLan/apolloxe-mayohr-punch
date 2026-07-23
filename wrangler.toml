@@ -6,9 +6,9 @@ compatibility_date = "2024-12-30"
 binding = "STATE"
 id = "REPLACE_WITH_KV_ID"
 
+# Non-sensitive defaults. Code has sane defaults for everything else; override
+# here as needed. Secrets (MAYO_USERNAME, MAYO_PASSWORD, RESEND_API_KEY,
+# NOTIFY_TO, NOTIFY_FROM) go via `wrangler secret put`, never here.
 [vars]
 TIMEZONE = "Asia/Taipei"
-PUNCH_LATITUDE = "25.0781415"
-PUNCH_LONGITUDE = "121.5703676"
-USER_AGENT = "Apollo HR XE/3.0.41 (iPhone; iOS 13.3; Scale/2.00)"
 DRY_RUN = "true"
