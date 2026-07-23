@@ -1,0 +1,109 @@
+# apollo-auto-punch
+
+A Cloudflare Worker that automatically clocks you in/out of Apollo XE (MayoHR),
+driven by your own shift calendar. It logs in, reads Mayo's schedule for the day,
+and punches via the GPS `/locate` endpoint (which validates by location, not IP —
+so it works from Cloudflare's network). Emails you on success and failure.
+
+## How it works (per cron fire)
+
+```
+login → read today's calendar → workday? ──no─→ skip (weekend/holiday)
+                                   │yes
+                                   ▼
+                         on leave? ──(RESPECT_LEAVE=true)─→ skip
+                                   │ default: no
+                                   ▼
+          clock in  = shiftStart − (buffer + random early)   → always EARLY
+          clock out = shiftEnd   + random late               → always LATE
+          each punch: GPS office coords + small random jitter, verified by the
+          server's response (AttendanceHistoryId). Idempotent via KV.
+```
+
+- **Reaction buffer:** if you're not clocked in by `shiftStart − REACTION_BUFFER_MIN`,
+  it emails an urgent "punch manually" alert while still retrying.
+- **Never double-punches:** KV flags + the server's own duplicate check.
+- Shift times come from Mayo's calendar, so flex/variable schedules just work.
+
+> **Note.** Your company IP-restricts the *web* punch (office/VPN only). This uses
+> the *GPS* punch, sending your office coordinates from a cloud server. That
+> deliberately works around the office-only control — make sure you're comfortable
+> that this is within your employer's policy before running it.
+
+## Setup
+
+```bash
+npm install
+```
+
+1. **Pick your punch location** (which office to report):
+   ```bash
+   MAYO_USERNAME=you@company.com MAYO_PASSWORD=... node scripts/list-locations.mjs
+   ```
+   Put the chosen `PunchesLocationId` into `wrangler.toml` → `PUNCHES_LOCATION_ID`,
+   and set `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` to that office's coordinates.
+
+2. **Create the KV namespace** and paste its id into `wrangler.toml`:
+   ```bash
+   npx wrangler kv namespace create STATE
+   ```
+
+3. **Set secrets** (never commit these):
+   ```bash
+   npx wrangler secret put MAYO_USERNAME     # your login email
+   npx wrangler secret put MAYO_PASSWORD
+   npx wrangler secret put RESEND_API_KEY    # from resend.com (free tier is plenty)
+   npx wrangler secret put NOTIFY_TO         # where to email you
+   npx wrangler secret put NOTIFY_FROM       # a verified Resend sender
+   ```
+
+4. **Verify locally:**
+   ```bash
+   npm test          # unit tests
+   npm run typecheck # tsc
+   ```
+
+## Go live safely
+
+`wrangler.toml` ships with `DRY_RUN = "true"` — the Worker runs the whole pipeline
+(login, calendar, planning, email) but **never actually punches**.
+
+```bash
+npx wrangler deploy
+npx wrangler tail          # watch a real morning/evening window
+```
+Confirm it plans correctly and sends a DRY_RUN success email. Then flip it live:
+
+```toml
+# wrangler.toml
+DRY_RUN = "false"
+```
+```bash
+npx wrangler deploy
+```
+Watch the first real workday via `wrangler tail`, confirm the success email quotes
+Mayo's recorded time, and check Apollo shows exactly one in + one out.
+
+## Configuration (all optional except secrets)
+
+| Var | Default | Meaning |
+|-----|---------|---------|
+| `TIMEZONE` | `Asia/Taipei` | shift-time timezone |
+| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | Taipei office | reported coordinates |
+| `PUNCHES_LOCATION_ID` | `0e7d3f49…` (台北辦公室) | office location id |
+| `GPS_JITTER_METERS` | `12` | random shift radius per punch |
+| `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early (on top of buffer) |
+| `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
+| `REACTION_BUFFER_MIN` | `10` | urgent-alert lead time before shift start |
+| `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
+| `NOTIFY_ON_SUCCESS` / `NOTIFY_ON_FAILURE` | `true` / `true` | email toggles |
+| `DRY_RUN` | `true` | plan + email but never punch |
+
+## Layout
+
+- `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
+  `notify` (Resend), `state` (KV), `time`, `scheduler`, `index` (cron handler).
+- `scripts/list-locations.mjs` — pick your `PUNCHES_LOCATION_ID`.
+- `probe/` — read-only discovery scripts used to reverse-engineer the API (not
+  part of the Worker).
+- `docs/` — the design spec, plan, and confirmed API facts.
