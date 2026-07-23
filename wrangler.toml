@@ -1,7 +1,6 @@
 name = "apollo-auto-punch"
 main = "src/index.ts"
-compatibility_date = "2025-01-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2024-12-30"
 
 [[kv_namespaces]]
 binding = "STATE"
