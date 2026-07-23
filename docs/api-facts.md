@@ -65,6 +65,25 @@ cookie auth (`__ModuleSessionCookie`), JSON body `{ "AttendanceType": 1|2 }`
 web-punch path. To confirm the exact endpoint/host/body for THIS account: capture
 a real clock-out cURL. Response envelope expected `{ Meta: { HttpStatusCode }, Data: {...} }`.
 
+## Scheduling / timing requirements (from user — bake into the scheduler, Task 9)
+
+- **Clock-in ALWAYS earlier, clock-out ALWAYS later**, with randomness inside
+  those bounds. Guaranteed by construction: `targetIn = shiftStart −
+  random(earlyIn.min..earlyIn.max)`, `targetOut = shiftEnd +
+  random(lateOut.min..lateOut.max)`, magnitudes clamped ≥1 (see `config.ts`).
+- **Reaction buffer for failures:** clock-in is time-critical. Keep a buffer so
+  the user can punch manually if automation fails.
+  - Attempt clock-in early (the earliness is buffer) and **retry** on each cron
+    fire until `shiftStart`.
+  - On ANY punch failure, email immediately (failure notification).
+  - **Escalate:** if still not clocked in by `shiftStart − reactionBufferMin`
+    (config, default ~10 min), send an URGENT "clock-in failed — punch manually"
+    email so the user reacts before being late, while the Worker keeps retrying.
+  - Clock-out is not time-critical (can punch out anytime after shift) → no
+    escalation needed, just "always later".
+- Config to add when building Task 9: `reactionBufferMin` (default 10). Consider
+  raising `earlyIn` defaults so the first attempt has inherent buffer.
+
 ## Attendance read-back — PENDING
 
 Endpoint that lists a day's actual punch records (for verify). URL + shape TBD
