@@ -1,6 +1,16 @@
+// Times are local "HH:MM" (in the configured timezone), compared against the
+// current local HH:MM. Assumes same-day shifts (no midnight crossing).
 export type DayPlan =
   | { kind: "skip"; reason: string }
-  | { kind: "active"; targetIn: string; targetOut: string; inDone: boolean; outDone: boolean };
+  | {
+      kind: "active";
+      targetIn: string; // jittered clock-in time, always before shiftStart
+      targetOut: string; // jittered clock-out time, always after shiftEnd
+      escalateInAt: string; // shiftStart − reactionBufferMin; urgent alert if not clocked in by then
+      inDone: boolean;
+      outDone: boolean;
+      escalatedIn: boolean; // urgent "punch manually" email already sent this day
+    };
 
 const key = (dateKey: string) => `plan:${dateKey}`;
 

@@ -12,3 +12,16 @@ id = "REPLACE_WITH_KV_ID"
 [vars]
 TIMEZONE = "Asia/Taipei"
 DRY_RUN = "true"
+# GPS punch location — office coordinates + the location id it belongs to.
+# Run `node scripts/list-locations.mjs` to see your location ids.
+PUNCH_LATITUDE = "25.0781415"
+PUNCH_LONGITUDE = "121.5703676"
+PUNCHES_LOCATION_ID = "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1" # 台北辦公室 (Taipei, L001)
+# GPS_JITTER_METERS = "12"        # random shift radius per punch
+# Timing (all optional; sensible defaults in code):
+# PUNCH_EARLY_IN_MIN = "1"        # clock in 1–15 min before scheduled start
+# PUNCH_EARLY_IN_MAX = "15"
+# PUNCH_LATE_OUT_MIN = "1"        # clock out 1–15 min after scheduled end
+# PUNCH_LATE_OUT_MAX = "15"
+# REACTION_BUFFER_MIN = "10"      # urgent "punch manually" alert this many min before start if not clocked in
+# RESPECT_LEAVE = "false"         # true = skip full-day-leave days
