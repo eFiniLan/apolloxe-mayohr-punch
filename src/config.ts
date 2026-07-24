@@ -22,8 +22,8 @@ export interface Config {
   //   clock-OUT = shiftEnd   + random(lateOut)                        → always LATE
   earlyIn: { min: number; max: number };
   lateOut: { min: number; max: number };
-  // If still not clocked in by (shiftStart − reactionBufferMin), send an urgent
-  // "punch manually" email while the Worker keeps retrying — leaves you time to react.
+  // Clock-in is attempted at least this many minutes before the shift, so if it
+  // genuinely fails the failure email reaches you with time to punch manually.
   reactionBufferMin: number;
   respectLeave: boolean;
   notifyOnSuccess: boolean;

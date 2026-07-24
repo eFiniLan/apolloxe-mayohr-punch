@@ -51,6 +51,13 @@ describe("runScheduler (stateless)", () => {
     expect(d.punch).toHaveBeenCalledOnce();
   });
 
+  it("emails (not silently skips) when a workday is missing its shift time", async () => {
+    const d = deps({ dayInfo: { isWorkday: true, onLeave: false, shiftStart: null, shiftEnd: "18:30" } });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).not.toHaveBeenCalled();
+    expect(d.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "failure" }));
+  });
+
   it("does not punch before the target time", async () => {
     const d = deps({ now: tw(9, 10) }); // before 09:19
     await runScheduler(baseEnv, d);

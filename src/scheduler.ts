@@ -15,6 +15,11 @@ export interface Deps {
   rand?: () => number;
 }
 
+// The cron cadence (minutes). Clock-in's latest target is kept at least this far
+// before the shift so a fire is guaranteed to land in [target, shiftStart).
+// Keep in sync with wrangler.toml `crons` (*/5).
+const CRON_STEP_MIN = 5;
+
 /**
  * One cron fire. Stateless — no KV. The server is the source of truth:
  *   login → read today's calendar → (if it's time) punch in/out.
@@ -45,16 +50,29 @@ export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<
 
     if (!info.isWorkday) return; // weekend / holiday
     if (cfg.respectLeave && info.onLeave) return;
-    if (!info.shiftStart || !info.shiftEnd) return;
 
-    // Randomized target, always early-in (≥ reactionBufferMin before shift so a
-    // failure alert lands with buffer) / late-out. Fresh randomness per fire is
-    // fine: the punch lands at the first fire past the target, and the target's
-    // upper bound guarantees it fires before the shift boundary.
+    // Clock-in needs the shift START; clock-out needs the shift END. A workday
+    // missing the relevant time is an anomaly — alert rather than skip silently.
+    const boundary = direction === "in" ? info.shiftStart : info.shiftEnd;
+    if (!boundary) {
+      await d.notify(cfg, {
+        level: "failure",
+        subject: `⚠️ Apollo clock-${direction} ${dateKey}: no scheduled time`,
+        body: `It's a workday but the shift ${direction === "in" ? "start" : "end"} time is missing from the calendar — punch manually.`,
+      });
+      return;
+    }
+
+    // Randomized target. Clock-in is ALWAYS early: at least `reactionBufferMin`
+    // before the shift (so a failure alert has buffer) AND at least CRON_STEP_MIN
+    // before it — the latter guarantees a 5-min cron tick lands in
+    // [target, shiftStart), so the punch can never slip past the shift even if
+    // reactionBufferMin/earlyIn are configured small. Clock-out is simply after
+    // shiftEnd (no upper bound to guarantee).
     const target =
       direction === "in"
-        ? addMinutes(info.shiftStart, -(cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)))
-        : addMinutes(info.shiftEnd, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
+        ? addMinutes(boundary, -Math.max(CRON_STEP_MIN, cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)))
+        : addMinutes(boundary, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
 
     if (hhmm < target) return; // not time yet
 

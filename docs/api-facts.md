@@ -85,13 +85,13 @@ There are two punch endpoints, both cookie-auth (`__ModuleSessionCookie`):
 - Punch locations: `GET …/backend/pt/api/locations/EnableList` →
   `Data[{PunchesLocationId, LocationCode, LocationName}]`. Office = L001.
 - Server-side idempotency: rejects a duplicate clock-in (`PT_TodayHasCheckInRecords`)
-  and presumably clock-out — a second safety net beyond our KV flags.
+  and presumably clock-out. **This IS the Worker's idempotency — there is no KV.**
 - **~10-minute cooldown:** a punch within ~10 min of a previous one is rejected with
   `Error.Status = "PT_PlsDonotContinuousCheckIn"` (Title counts down the remaining
-  minutes). Treated as a `failure` outcome (intended — it's an honest rejection).
-  The Worker never hits it in normal operation because `inDone`/`outDone` stop it
-  from re-attempting after a success; it only surfaces on a manual double-punch or
-  a genuine state anomaly, where a failure signal is appropriate.
+  minutes). Mapped to its own `cooldown` outcome. The **Worker** treats `cooldown`
+  (and `already_done`) as a quiet no-op — "a punch already happened, nothing to do" —
+  so firing every 5 min never re-punches or emails. The **manual `punch-now`** tool
+  shows it as a failure (honest feedback to a human deliberately punching twice).
 - Geofence radius not directly read, but the office radius (`radiusofEffectiveRange`)
   far exceeds the ±12 m GPS jitter, so jitter stays in-bounds. Always send the
   real office coords.
@@ -140,14 +140,14 @@ So the punch is **self-verifying**: `Meta.HttpStatusCode === "200"` + a `Data.At
 IS the confirmation. **No separate read-back endpoint is needed** — `verify` is
 just interpreting the punch response.
 
-### Punch result handling (for the scheduler)
-- `Meta.HttpStatusCode === "200"` with `AttendanceHistoryId` → SUCCESS (email quotes
+### Punch result handling (stateless — no KV)
+- `Meta.HttpStatusCode === "200"` with `AttendanceHistoryId` → `success` (email quotes
   `Data.punchDate` + `LocationName`).
-- `Error.Status === "PT_TodayHasCheckInRecords"` / a clock-out duplicate → treat as
-  **already done / success** (idempotent), mark the KV flag, do NOT alert.
+- `Error.Status` matching `/^PT_TodayHas.*Records$/` → `already_done` → Worker stays quiet.
+- `Error.Status === "PT_PlsDonotContinuousCheckIn"` → `cooldown` → Worker stays quiet.
 - `Error.Status === "SH_NonAuthorisedIP"` → only happens on `/web`; must never occur
-  on `/locate`. If it ever does, alert.
-- Any other `Error` / non-200 → FAILURE (alert email; retry next fire).
+  on `/locate`. Falls through to `failure`.
+- Any other `Error` / non-200 → `failure` (alert email; retries next fire).
 
 ### GPS jitter (confirmed accepted)
 Uniform point within `gpsJitterMeters` of the office, rounded to 7 decimals:

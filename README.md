@@ -83,6 +83,10 @@ npx wrangler deploy
 Watch the first real workday via `wrangler tail`, confirm the success email quotes
 Mayo's recorded time, and check Apollo shows exactly one in + one out.
 
+> Being stateless, each cron fire does a fresh login + calendar read (≈ up to ~48
+> logins/day across both windows). That's the trade for having no KV. If you want to
+> cut that, narrow the `crons` windows in `wrangler.toml` to just around your shift.
+
 ## Configuration (all optional except secrets)
 
 | Var | Default | Meaning |
@@ -93,7 +97,7 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 | `GPS_JITTER_METERS` | `12` | random shift radius per punch |
 | `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early (on top of buffer) |
 | `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
-| `REACTION_BUFFER_MIN` | `10` | urgent-alert lead time before shift start |
+| `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before shift (failure-email buffer) |
 | `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
 | `NOTIFY_ON_SUCCESS` / `NOTIFY_ON_FAILURE` | `true` / `true` | email toggles |
 | `DRY_RUN` | `true` | plan + email but never punch |
