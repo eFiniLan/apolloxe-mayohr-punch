@@ -17,11 +17,17 @@ const METERS_PER_DEGREE_LAT = 111320;
 
 /**
  * Uniform random point within `meters` of (lat, lng), rounded to 7 decimals.
+ * `rand` is injectable (like time.randInt) so the jitter is testable.
  * See docs/api-facts.md "GPS jitter (confirmed accepted)".
  */
-export function jitterCoord(lat: number, lng: number, meters: number): { lat: number; lng: number } {
-  const r = meters * Math.sqrt(Math.random());
-  const t = Math.random() * 2 * Math.PI;
+export function jitterCoord(
+  lat: number,
+  lng: number,
+  meters: number,
+  rand: () => number = Math.random,
+): { lat: number; lng: number } {
+  const r = meters * Math.sqrt(rand());
+  const t = rand() * 2 * Math.PI;
   const dLat = (r * Math.cos(t)) / METERS_PER_DEGREE_LAT;
   const dLng = (r * Math.sin(t)) / (METERS_PER_DEGREE_LAT * Math.cos((lat * Math.PI) / 180));
   return { lat: +(lat + dLat).toFixed(7), lng: +(lng + dLng).toFixed(7) };
@@ -37,8 +43,7 @@ interface PunchResponse {
  * Clock in/out via the GPS `/locate` endpoint (not IP-gated). The response is
  * self-verifying: Meta.HttpStatusCode === "200" + Data.AttendanceHistoryId IS
  * the confirmation, so there is no separate read-back step.
- * Ported from the proven probe/clockout.mjs; see docs/api-facts.md
- * "Punch — CONFIRMED" and "Punch response — CONFIRMED".
+ * See docs/api-facts.md "Punch — CONFIRMED" and "Punch response — CONFIRMED".
  */
 export async function punch(
   session: Session,
@@ -85,7 +90,7 @@ export async function punch(
   let json: PunchResponse;
   try {
     json = (await res.json()) as PunchResponse;
-  } catch (e) {
+  } catch {
     return { outcome: "failure", detail: `HTTP ${res.status}` };
   }
 

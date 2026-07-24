@@ -51,6 +51,21 @@ describe("jitterCoord", () => {
     const distinct = new Set(results.map((r) => `${r.lat},${r.lng}`));
     expect(distinct.size).toBeGreaterThan(1);
   });
+
+  it("is deterministic with an injected rand (rand=1 → full radius, due east)", () => {
+    // r = meters*sqrt(1) = meters ; t = 2π → cos=1, sin≈0 ⇒ shift is all latitude.
+    const r = jitterCoord(OFFICE_LAT, OFFICE_LNG, 12, () => 1);
+    expect(r).toEqual(jitterCoord(OFFICE_LAT, OFFICE_LNG, 12, () => 1));
+    expect(haversine(OFFICE_LAT, OFFICE_LNG, r.lat, r.lng)).toBeCloseTo(12, 1);
+    expect(r.lng).toBeCloseTo(OFFICE_LNG, 5);
+  });
+
+  it("returns the origin when rand=0 (zero radius)", () => {
+    expect(jitterCoord(OFFICE_LAT, OFFICE_LNG, 12, () => 0)).toEqual({
+      lat: OFFICE_LAT,
+      lng: OFFICE_LNG,
+    });
+  });
 });
 
 describe("punch", () => {

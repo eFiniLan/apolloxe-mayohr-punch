@@ -39,14 +39,21 @@ login → read today's calendar → workday? ──no─→ skip (weekend/holida
 npm install
 ```
 
-1. **Pick your punch location** (which office to report):
+1. **Local credentials** — create `.dev.vars` in the project root (gitignored;
+   also what `wrangler dev` reads). The CLI helpers below use it:
+   ```
+   MAYO_USERNAME=you@company.com
+   MAYO_PASSWORD=your-password
+   ```
+
+2. **Pick your punch location** (which office to report):
    ```bash
-   MAYO_USERNAME=you@company.com MAYO_PASSWORD=... node scripts/list-locations.mjs
+   npm run locations
    ```
    Put the chosen `PunchesLocationId` into `wrangler.toml` → `PUNCHES_LOCATION_ID`,
    and set `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` to that office's coordinates.
 
-2. **Set secrets** (never commit these):
+3. **Set deployed secrets** (separate from `.dev.vars`; never commit these):
    ```bash
    npx wrangler secret put MAYO_USERNAME     # your login email
    npx wrangler secret put MAYO_PASSWORD
@@ -55,7 +62,7 @@ npm install
    npx wrangler secret put NOTIFY_FROM       # a verified Resend sender
    ```
 
-3. **Verify locally:**
+4. **Verify locally:**
    ```bash
    npm test          # unit tests
    npm run typecheck # tsc
@@ -106,7 +113,8 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 
 - `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
   `notify` (Resend), `time`, `scheduler` (stateless per-fire logic), `index` (cron handler).
-- `scripts/list-locations.mjs` — pick your `PUNCHES_LOCATION_ID`.
-- `probe/` — read-only discovery scripts used to reverse-engineer the API (not
-  part of the Worker).
+- `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
+  runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
+  clock in/out), `list-locations.ts` (pick your `PUNCHES_LOCATION_ID`),
+  `_env.ts` (shared `.dev.vars` + config bootstrap).
 - `docs/` — the design spec, plan, and confirmed API facts.

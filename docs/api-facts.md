@@ -1,7 +1,9 @@
 # Apollo (apolloxe / MayoHR) — Confirmed API facts
 
-Status: **auth + calendar CONFIRMED against the live account** via `probe/probe.mjs`
-(read-only, no writes). Punch + attendance read-back still pending.
+Status: **auth, calendar, and punch all CONFIRMED against the live account** —
+including real clock-in and clock-out from a non-office IP. The reverse-engineering
+scripts this was derived from have been deleted; `src/` is now the only
+implementation, and this document is its reference.
 
 ## Auth flow (Worker-portable, pure `fetch`)
 
@@ -104,29 +106,26 @@ location is never identical:
 - Jitter: a uniform random point within `GPS_JITTER_METERS` (config, default 12 m)
   of the fixed point. Convert meters→degrees: `dLat = r·cosθ / 111320`,
   `dLng = r·sinθ / (111320·cos(lat))`, with `r = meters·√U`, `θ = 2π·U` (U~Uniform[0,1)).
-- The clock-out cURL will reveal the exact field names (`Latitude`/`Longitude`?)
-  and whether `PunchesLocationId` / `IdentifyCode` are required — add those to
-  config once known.
 
-## Scheduling / timing requirements (from user — bake into the scheduler, Task 9)
+## Scheduling / timing (as implemented in `src/scheduler.ts`)
 
 - **Clock-in ALWAYS earlier, clock-out ALWAYS later**, with randomness inside
-  those bounds. Guaranteed by construction: `targetIn = shiftStart −
-  (reactionBufferMin + random(earlyIn.min..earlyIn.max))` (so the first attempt
-  is always before `escalateInAt`), `targetOut = shiftEnd +
-  random(lateOut.min..lateOut.max)`, magnitudes clamped ≥1 (see `scheduler.ts`).
-- **Reaction buffer for failures:** clock-in is time-critical. Keep a buffer so
-  the user can punch manually if automation fails.
-  - Attempt clock-in early (the earliness is buffer) and **retry** on each cron
-    fire until `shiftStart`.
-  - On ANY punch failure, email immediately (failure notification).
-  - **Escalate:** if still not clocked in by `shiftStart − reactionBufferMin`
-    (config, default ~10 min), send an URGENT "clock-in failed — punch manually"
-    email so the user reacts before being late, while the Worker keeps retrying.
-  - Clock-out is not time-critical (can punch out anytime after shift) → no
-    escalation needed, just "always later".
-- Config to add when building Task 9: `reactionBufferMin` (default 10). Consider
-  raising `earlyIn` defaults so the first attempt has inherent buffer.
+  those bounds — guaranteed by construction, not by checking afterwards:
+  - `targetIn  = shiftStart − max(CRON_STEP_MIN, reactionBufferMin + random(earlyIn))`
+  - `targetOut = shiftEnd   + random(lateOut)`
+  - Jitter magnitudes are clamped ≥1 in `config.band()`. The `CRON_STEP_MIN` (5,
+    matching `wrangler.toml` crons) floor guarantees a 5-minute tick lands inside
+    `[targetIn, shiftStart)`, so the clock-in can never slip past the shift even
+    if `reactionBufferMin`/`earlyIn` are configured very small.
+- **Reaction buffer:** clock-in is time-critical, so it is attempted at least
+  `reactionBufferMin` (default 10) before the shift. If it genuinely fails, the
+  failure email arrives with time to punch manually, and the next cron fire retries.
+- Clock-out is not time-critical, so it only needs "always later" — no buffer.
+- **No escalation tier.** An earlier design had a separate URGENT email; the thin
+  stateless refactor dropped it, since every failure already emails immediately
+  and retries, and the early attempt supplies the buffer.
+- Direction is derived from the time of day (`hhmm < "12:00"` ⇒ in, else out)
+  rather than from stored state — this is what makes the Worker stateless.
 
 ## Punch response — CONFIRMED (a real clock-out succeeded)
 

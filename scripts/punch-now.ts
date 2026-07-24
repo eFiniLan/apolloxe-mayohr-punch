@@ -6,17 +6,14 @@
 //   npm run punch out           # clock out (real)
 //   DRY_RUN=true npm run punch in   # dry run — no real punch (safe to try anytime)
 //
-// Credentials: env MAYO_USERNAME/MAYO_PASSWORD, else probe/secrets.json.
+// Credentials: .dev.vars (or MAYO_USERNAME / MAYO_PASSWORD env vars).
 // Coords/location/timing: env (PUNCH_LATITUDE, …), else the Worker defaults.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { loadConfig } from "../src/config";
 import { login } from "../src/auth";
 import { getDayInfo } from "../src/calendar";
 import { punch } from "../src/punch";
 import { nowParts } from "../src/time";
+import { localConfig } from "./_env";
 
 const dir = (process.argv[2] || "").toLowerCase();
 if (dir !== "in" && dir !== "out") {
@@ -24,37 +21,13 @@ if (dir !== "in" && dir !== "out") {
   process.exit(1);
 }
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-function creds(): { userName: string; password: string; src: string } {
-  if (process.env.MAYO_USERNAME && process.env.MAYO_PASSWORD)
-    return { userName: process.env.MAYO_USERNAME, password: process.env.MAYO_PASSWORD, src: "env" };
-  try {
-    const s = JSON.parse(readFileSync(join(HERE, "..", "probe", "secrets.json"), "utf8"));
-    if (s.userName && s.password && !String(s.userName).startsWith("REPLACE"))
-      return { userName: s.userName, password: s.password, src: "probe/secrets.json" };
-  } catch {}
-  console.error("No credentials: set MAYO_USERNAME + MAYO_PASSWORD, or fill probe/secrets.json.");
-  process.exit(1);
-}
-
-const c = creds();
-// Build the same env the Worker's loadConfig reads. NOTIFY_* / RESEND are required
-// by loadConfig but unused here (punch-now never emails), so dummies are fine.
-const env: Record<string, string> = {
-  RESEND_API_KEY: "unused",
-  NOTIFY_TO: "unused@example.com",
-  NOTIFY_FROM: "unused@example.com",
-  ...(process.env as Record<string, string>),
-  MAYO_USERNAME: c.userName,
-  MAYO_PASSWORD: c.password,
-};
-const cfg = loadConfig(env as any);
+const { cfg, credsFrom } = localConfig();
 
 const now = new Intl.DateTimeFormat("en-GB", { timeZone: cfg.timezone, dateStyle: "medium", timeStyle: "medium" }).format(new Date());
 console.log("\x1b[1mApollo punch-now\x1b[0m (reuses src/ modules)");
 console.log(`  direction : clock-${dir.toUpperCase()}${cfg.dryRun ? "  \x1b[33m[DRY_RUN — no real punch]\x1b[0m" : ""}`);
 console.log(`  now       : ${now} (${cfg.timezone})`);
-console.log(`  account   : ${c.userName}  (creds from ${c.src})`);
+console.log(`  account   : ${cfg.userName}  (creds from ${credsFrom})`);
 console.log(`  location  : ${cfg.punchesLocationId}`);
 console.log(`  coords    : ${cfg.latitude}, ${cfg.longitude}  (± ${cfg.gpsJitterMeters} m jitter)`);
 

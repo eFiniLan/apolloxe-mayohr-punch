@@ -7,7 +7,9 @@ export interface Env {
 }
 
 export default {
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runScheduler(env));
+  // Awaited (not waitUntil) so a thrown failure marks the cron invocation failed
+  // — it shows up in `wrangler tail` and the dashboard instead of looking green.
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext) {
+    await runScheduler(env);
   },
 };

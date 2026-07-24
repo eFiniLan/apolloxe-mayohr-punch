@@ -3,4 +3,3 @@ node_modules/
 .wrangler/
 dist/
 *.log
-probe/secrets.json
