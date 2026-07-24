@@ -91,5 +91,7 @@ describe("getDayInfo", () => {
     expect(calls[0].url).toBe(`${CAL_URL_PREFIX}?year=2026&month=7`);
     const cookieHeader = calls[0].init.headers.cookie ?? calls[0].init.headers.Cookie;
     expect(cookieHeader).toBe(session.cookie);
+    // REQUIRED by the live API — omitting it changes the response shape (no data.calendars).
+    expect(calls[0].init.headers["accept-language"]).toBe("en-us");
   });
 });

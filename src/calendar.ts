@@ -103,6 +103,9 @@ export async function getDayInfo(
       cookie: session.cookie,
       "user-agent": cfg.userAgent,
       accept: "*/*",
+      // REQUIRED: without accept-language the API returns a different (numeric-indexed)
+      // shape with no `data.calendars` — verified against the live API.
+      "accept-language": "en-us",
       "content-type": "application/json",
       referer: REFERER_URL,
     },
