@@ -86,6 +86,12 @@ There are two punch endpoints, both cookie-auth (`__ModuleSessionCookie`):
   `Data[{PunchesLocationId, LocationCode, LocationName}]`. Office = L001.
 - Server-side idempotency: rejects a duplicate clock-in (`PT_TodayHasCheckInRecords`)
   and presumably clock-out — a second safety net beyond our KV flags.
+- **~10-minute cooldown:** a punch within ~10 min of a previous one is rejected with
+  `Error.Status = "PT_PlsDonotContinuousCheckIn"` (Title counts down the remaining
+  minutes). Treated as a `failure` outcome (intended — it's an honest rejection).
+  The Worker never hits it in normal operation because `inDone`/`outDone` stop it
+  from re-attempting after a success; it only surfaces on a manual double-punch or
+  a genuine state anomaly, where a failure signal is appropriate.
 - Geofence radius not directly read, but the office radius (`radiusofEffectiveRange`)
   far exceeds the ±12 m GPS jitter, so jitter stays in-bounds. Always send the
   real office coords.
