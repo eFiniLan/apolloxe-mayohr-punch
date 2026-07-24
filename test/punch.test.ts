@@ -119,6 +119,23 @@ describe("punch", () => {
     });
   });
 
+  it("cooldown: PT_PlsDonotContinuousCheckIn maps to cooldown outcome (not failure)", async () => {
+    const f = mockFetch(
+      {
+        Meta: { HttpStatusCode: "400" },
+        Error: { Status: "PT_PlsDonotContinuousCheckIn", Title: "Do not check in/out continually, please check in/out again after 8 minutes" },
+      },
+      400,
+    );
+
+    const result = await punch(session, cfg, "in", f as any);
+
+    expect(result).toEqual({
+      outcome: "cooldown",
+      detail: "Do not check in/out continually, please check in/out again after 8 minutes",
+    });
+  });
+
   it("failure: generic error maps to failure outcome with detail", async () => {
     const f = mockFetch(
       { Meta: { HttpStatusCode: "400" }, Error: { Status: "SH_Whatever", Title: "nope" } },

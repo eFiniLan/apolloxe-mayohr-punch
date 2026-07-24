@@ -17,12 +17,15 @@ login → read today's calendar → workday? ──no─→ skip (weekend/holida
           clock in  = shiftStart − (buffer + random early)   → always EARLY
           clock out = shiftEnd   + random late               → always LATE
           each punch: GPS office coords + small random jitter, verified by the
-          server's response (AttendanceHistoryId). Idempotent via KV.
+          server's response (AttendanceHistoryId).
 ```
 
-- **Reaction buffer:** if you're not clocked in by `shiftStart − REACTION_BUFFER_MIN`,
-  it emails an urgent "punch manually" alert while still retrying.
-- **Never double-punches:** KV flags + the server's own duplicate check.
+- **Stateless — no KV.** The Worker keeps no state. MayoHR itself is the source of
+  truth: a second punch returns `already_done` (already punched today) or a
+  `cooldown` (punched <~10 min ago), both of which the Worker treats as "done" and
+  stays quiet. So the cron can fire every 5 min safely.
+- **Reaction buffer:** clock-in is attempted `≥ REACTION_BUFFER_MIN` before your
+  shift, so if it genuinely fails you get the failure email with time to punch manually.
 - Shift times come from Mayo's calendar, so flex/variable schedules just work.
 
 > **Note.** Your company IP-restricts the *web* punch (office/VPN only). This uses
@@ -43,12 +46,7 @@ npm install
    Put the chosen `PunchesLocationId` into `wrangler.toml` → `PUNCHES_LOCATION_ID`,
    and set `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` to that office's coordinates.
 
-2. **Create the KV namespace** and paste its id into `wrangler.toml`:
-   ```bash
-   npx wrangler kv namespace create STATE
-   ```
-
-3. **Set secrets** (never commit these):
+2. **Set secrets** (never commit these):
    ```bash
    npx wrangler secret put MAYO_USERNAME     # your login email
    npx wrangler secret put MAYO_PASSWORD
@@ -57,10 +55,11 @@ npm install
    npx wrangler secret put NOTIFY_FROM       # a verified Resend sender
    ```
 
-4. **Verify locally:**
+3. **Verify locally:**
    ```bash
    npm test          # unit tests
    npm run typecheck # tsc
+   npm run punch in  # optional: a REAL end-to-end clock-in (or DRY_RUN=true to dry-run)
    ```
 
 ## Go live safely
@@ -102,7 +101,7 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 ## Layout
 
 - `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
-  `notify` (Resend), `state` (KV), `time`, `scheduler`, `index` (cron handler).
+  `notify` (Resend), `time`, `scheduler` (stateless per-fire logic), `index` (cron handler).
 - `scripts/list-locations.mjs` — pick your `PUNCHES_LOCATION_ID`.
 - `probe/` — read-only discovery scripts used to reverse-engineer the API (not
   part of the Worker).

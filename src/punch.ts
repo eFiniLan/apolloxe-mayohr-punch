@@ -3,13 +3,15 @@ import type { Config } from "./config";
 
 export type PunchOutcome =
   | { outcome: "success"; attendanceHistoryId: string; punchDate: string; locationName: string }
-  | { outcome: "already_done"; detail: string } // server says already punched → idempotent success
+  | { outcome: "already_done"; detail: string } // server: a record already exists today → idempotent
+  | { outcome: "cooldown"; detail: string } // server: punched <~10 min ago → a punch just happened
   | { outcome: "failure"; detail: string };
 
 const PUNCH_URL = "https://apolloxe.mayohr.com/backend/pt/api/checkIn/punch/locate";
 const REFERER_URL = "https://apolloxe.mayohr.com/ta?id=webpunch";
 
 const ALREADY_DONE_RE = /^PT_TodayHas.*Records$/;
+const COOLDOWN_STATUS = "PT_PlsDonotContinuousCheckIn";
 
 const METERS_PER_DEGREE_LAT = 111320;
 
@@ -98,6 +100,10 @@ export async function punch(
 
   if (json.Error?.Status && ALREADY_DONE_RE.test(json.Error.Status)) {
     return { outcome: "already_done", detail: json.Error.Title ?? json.Error.Status };
+  }
+
+  if (json.Error?.Status === COOLDOWN_STATUS) {
+    return { outcome: "cooldown", detail: json.Error.Title ?? json.Error.Status };
   }
 
   return { outcome: "failure", detail: json.Error?.Title ?? `HTTP ${res.status}` };

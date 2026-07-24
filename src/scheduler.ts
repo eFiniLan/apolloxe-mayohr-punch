@@ -1,136 +1,82 @@
 import type { Env } from "./index";
 import { loadConfig } from "./config";
-import { login as realLogin, type Session } from "./auth";
+import { nowParts, addMinutes, randInt } from "./time";
+import { login as realLogin } from "./auth";
 import { getDayInfo as realGetDayInfo } from "./calendar";
 import { punch as realPunch } from "./punch";
 import { notify as realNotify } from "./notify";
-import { getPlan, savePlan, type DayPlan } from "./state";
-import { nowParts, addMinutes, randInt } from "./time";
 
 export interface Deps {
   login: typeof realLogin;
   getDayInfo: typeof realGetDayInfo;
   punch: typeof realPunch;
   notify: typeof realNotify;
-  now?: Date; // default new Date()
-  rand?: () => number; // default Math.random (jitter)
+  now?: Date;
+  rand?: () => number;
 }
 
 /**
- * Per-cron-fire orchestration: build (or load) today's DayPlan, then attempt
- * whichever punches are due, escalating a "punch manually" alert once if
- * clock-in is still outstanding past the reaction buffer.
- * See .superpowers/sdd/task-9-brief.md "Per-fire flow" for the exact steps
- * this implements.
+ * One cron fire. Stateless — no KV. The server is the source of truth:
+ *   login → read today's calendar → (if it's time) punch in/out.
+ * Direction is decided by time of day (morning = in, evening = out). The punch
+ * is attempted a randomized amount before/after the scheduled boundary, always
+ * early-in / late-out. Idempotency comes from the server: `already_done` and
+ * `cooldown` both mean "a punch already happened", so we stay quiet. Only a
+ * genuine failure emails — and because we attempt early, that email arrives with
+ * time to spare to punch manually.
  */
-export async function runScheduler(env: Env, deps?: Partial<Deps>): Promise<void> {
-  const login = deps?.login ?? realLogin;
-  const getDayInfo = deps?.getDayInfo ?? realGetDayInfo;
-  const punch = deps?.punch ?? realPunch;
-  const notify = deps?.notify ?? realNotify;
-  const now = deps?.now ?? new Date();
-  const rand = deps?.rand ?? Math.random;
-
+export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<void> {
+  const d = {
+    login: realLogin,
+    getDayInfo: realGetDayInfo,
+    punch: realPunch,
+    notify: realNotify,
+    ...deps,
+  };
   const cfg = loadConfig(env);
+  const now = deps.now ?? new Date();
+  const rand = deps.rand ?? Math.random;
   const { dateKey, hhmm } = nowParts(cfg.timezone, now);
-
-  // Lazy, per-fire-cached session: at most one login per fire, shared by
-  // calendar + punch calls.
-  let session: Session | null = null;
-  async function getSession(): Promise<Session> {
-    if (!session) session = await login(cfg);
-    return session;
-  }
+  const direction: "in" | "out" = hhmm < "12:00" ? "in" : "out";
 
   try {
-    let plan = await getPlan(env.STATE, dateKey);
+    const session = await d.login(cfg);
+    const info = await d.getDayInfo(session, cfg, dateKey);
 
-    if (!plan) {
-      const s = await getSession();
-      const info = await getDayInfo(s, cfg, dateKey);
+    if (!info.isWorkday) return; // weekend / holiday
+    if (cfg.respectLeave && info.onLeave) return;
+    if (!info.shiftStart || !info.shiftEnd) return;
 
-      if (!info.isWorkday) {
-        await savePlan(env.STATE, dateKey, { kind: "skip", reason: "not a workday" });
-        return;
-      }
-      if (cfg.respectLeave && info.onLeave) {
-        await savePlan(env.STATE, dateKey, { kind: "skip", reason: "on leave" });
-        return;
-      }
-      if (!info.shiftStart || !info.shiftEnd) {
-        throw new Error(`scheduler: workday ${dateKey} missing shiftStart/shiftEnd`);
-      }
+    // Randomized target, always early-in (≥ reactionBufferMin before shift so a
+    // failure alert lands with buffer) / late-out. Fresh randomness per fire is
+    // fine: the punch lands at the first fire past the target, and the target's
+    // upper bound guarantees it fires before the shift boundary.
+    const target =
+      direction === "in"
+        ? addMinutes(info.shiftStart, -(cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)))
+        : addMinutes(info.shiftEnd, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
 
-      const escalateInAt = addMinutes(info.shiftStart, -cfg.reactionBufferMin);
-      const targetIn = addMinutes(
-        info.shiftStart,
-        -(cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)),
-      );
-      const targetOut = addMinutes(info.shiftEnd, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
+    if (hhmm < target) return; // not time yet
 
-      plan = {
-        kind: "active",
-        targetIn,
-        targetOut,
-        escalateInAt,
-        inDone: false,
-        outDone: false,
-        escalatedIn: false,
-      };
-      await savePlan(env.STATE, dateKey, plan);
-      // Continue with this fresh active plan — a punch may already be due.
-    }
+    const r = await d.punch(session, cfg, direction);
 
-    if (plan.kind === "skip") return;
-
-    // --- Clock-in ---------------------------------------------------------
-    if (!plan.inDone && hhmm >= plan.targetIn) {
-      const s = await getSession();
-      const r = await punch(s, cfg, "in");
-      if (r.outcome === "success" || r.outcome === "already_done") {
-        plan.inDone = true;
-        await savePlan(env.STATE, dateKey, plan);
-        const body =
-          r.outcome === "success"
-            ? `Clocked in at ${r.punchDate} (${r.locationName}).`
-            : `Already clocked in (${r.detail}).`;
-        await notify(cfg, { level: "success", subject: "✅ Apollo clock-in", body });
-      } else {
-        await notify(cfg, { level: "failure", subject: "⚠️ clock-in FAILED", body: r.detail });
-        // leave inDone=false — retried next fire
-      }
-    }
-
-    // --- Clock-in escalation (after the attempt) --------------------------
-    if (!plan.inDone && !plan.escalatedIn && hhmm >= plan.escalateInAt) {
-      await notify(cfg, {
-        level: "urgent",
-        subject: "🚨 Apollo clock-in NOT done — punch manually",
-        body: `Not clocked in by ${plan.escalateInAt}; punch manually now. Worker still retrying.`,
+    if (r.outcome === "success") {
+      await d.notify(cfg, {
+        level: "success",
+        subject: `✅ Apollo clock-${direction} ${dateKey}`,
+        body: `Clock-${direction} recorded. Mayo shows ${r.punchDate} @ ${r.locationName}${cfg.dryRun ? " (DRY_RUN)" : ""}.`,
       });
-      plan.escalatedIn = true;
-      await savePlan(env.STATE, dateKey, plan);
-    }
-
-    // --- Clock-out (no escalation — not time-critical) ---------------------
-    if (!plan.outDone && hhmm >= plan.targetOut) {
-      const s = await getSession();
-      const r = await punch(s, cfg, "out");
-      if (r.outcome === "success" || r.outcome === "already_done") {
-        plan.outDone = true;
-        await savePlan(env.STATE, dateKey, plan);
-        const body =
-          r.outcome === "success"
-            ? `Clocked out at ${r.punchDate} (${r.locationName}).`
-            : `Already clocked out (${r.detail}).`;
-        await notify(cfg, { level: "success", subject: "✅ Apollo clock-out", body });
-      } else {
-        await notify(cfg, { level: "failure", subject: "⚠️ clock-out FAILED", body: r.detail });
-        // leave outDone=false — retried next fire
-      }
+    } else if (r.outcome === "already_done" || r.outcome === "cooldown") {
+      return; // a punch already happened — nothing to do, stay quiet
+    } else {
+      await d.notify(cfg, {
+        level: "failure",
+        subject: `⚠️ Apollo clock-${direction} FAILED ${dateKey}`,
+        body: `${r.detail}. Punch manually if needed — the Worker retries on the next run.`,
+      });
     }
   } catch (err) {
-    await notify(cfg, { level: "failure", subject: "⚠️ Apollo scheduler error", body: String(err) });
+    await d.notify(cfg, { level: "failure", subject: "⚠️ Apollo auto-punch error", body: String(err) });
     throw err;
   }
 }

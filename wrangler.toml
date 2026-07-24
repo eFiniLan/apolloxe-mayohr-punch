@@ -2,14 +2,13 @@ name = "apollo-auto-punch"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
 
-[[kv_namespaces]]
-binding = "STATE"
-id = "REPLACE_WITH_KV_ID"
+# Stateless — no KV. Idempotency comes from the server (already_done / cooldown).
 
 # Cron is UTC; Taiwan = UTC+8. Fires EVERY day (not just Mon–Fri) so makeup
 # workdays (補班) on weekends still run — the calendar's isWorkday decides whether
-# to actually punch, so weekends/holidays self-skip after one cheap check.
-#   00:00–01:55 UTC = 08:00–09:55 Taipei  → plan build + clock-in + escalation
+# to actually punch, so weekends/holidays self-skip after one cheap check. Each
+# fire attempts a punch only once it's past the randomized target time.
+#   00:00–01:55 UTC = 08:00–09:55 Taipei  → clock-in
 #   10:00–11:55 UTC = 18:00–19:55 Taipei  → clock-out
 # (Aligns with default shift 09:30/18:30 + early-in/late-out jitter. If your shift
 #  is much earlier/later, widen these UTC windows to cover it.)

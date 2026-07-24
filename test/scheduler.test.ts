@@ -1,307 +1,103 @@
 import { describe, it, expect, vi } from "vitest";
-import { env as testEnv } from "cloudflare:test";
-import { runScheduler } from "../src/scheduler";
-import type { Session } from "../src/auth";
-import type { DayInfo } from "../src/calendar";
+import { runScheduler, type Deps } from "../src/scheduler";
 import type { PunchOutcome } from "../src/punch";
-import { getPlan, savePlan, type DayPlan } from "../src/state";
 
-// ---- fixtures ---------------------------------------------------------
+// Config the loader requires (notify secrets unused by most tests).
+const baseEnv = {
+  MAYO_USERNAME: "e@x.com",
+  MAYO_PASSWORD: "p",
+  RESEND_API_KEY: "re",
+  NOTIFY_TO: "to@x.com",
+  NOTIFY_FROM: "fr@x.com",
+} as any;
 
-const SESSION: Session = { cookie: "__ModuleSessionCookie=ABC" };
+// A Date whose Asia/Taipei wall-clock is hh:mm on 2026-07-24 (TW = UTC+8).
+const tw = (hh: number, mm: number) => new Date(Date.UTC(2026, 6, 24, hh - 8, mm));
 
-const WORKDAY: DayInfo = { isWorkday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30" };
-const NON_WORKDAY: DayInfo = { isWorkday: false, onLeave: false, shiftStart: null, shiftEnd: null };
-const ON_LEAVE: DayInfo = { isWorkday: true, onLeave: true, shiftStart: "09:30", shiftEnd: "18:30" };
+const WORKDAY = { isWorkday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30" };
+// With rand=()=>0 and defaults (reactionBufferMin 10, earlyIn.min 1, lateOut.min 1):
+//   targetIn  = 09:30 − (10 + 1) = 09:19 ;  targetOut = 18:30 + 1 = 18:31
 
-// With PUNCH_EARLY_IN_MIN=MAX=5, REACTION_BUFFER_MIN=10, shiftStart "09:30":
-//   escalateInAt = "09:20", targetIn = "09:15"
-// With PUNCH_LATE_OUT_MIN=MAX=5, shiftEnd "18:30":
-//   targetOut = "18:35"
-const TARGET_IN = "09:15";
-const ESCALATE_IN_AT = "09:20";
-const TARGET_OUT = "18:35";
-
-function baseEnv(extra: Record<string, string> = {}) {
+function deps(over: Partial<Deps> & { punchOutcome?: PunchOutcome; dayInfo?: any } = {}): Deps {
+  const punchOutcome: PunchOutcome =
+    over.punchOutcome ?? { outcome: "success", attendanceHistoryId: "AH", punchDate: "09:20", locationName: "HQ" };
   return {
-    ...testEnv,
-    MAYO_USERNAME: "user@example.com",
-    MAYO_PASSWORD: "secret",
-    RESEND_API_KEY: "re_x",
-    NOTIFY_TO: "me@example.com",
-    NOTIFY_FROM: "bot@example.com",
-    PUNCH_EARLY_IN_MIN: "5",
-    PUNCH_EARLY_IN_MAX: "5",
-    PUNCH_LATE_OUT_MIN: "5",
-    PUNCH_LATE_OUT_MAX: "5",
-    REACTION_BUFFER_MIN: "10",
-    ...extra,
-  } as any;
+    login: over.login ?? (vi.fn(async () => ({ cookie: "c" })) as any),
+    getDayInfo: vi.fn(async () => over.dayInfo ?? WORKDAY) as any,
+    punch: vi.fn(async () => punchOutcome) as any,
+    notify: vi.fn(async () => {}) as any,
+    rand: () => 0,
+    now: over.now ?? tw(9, 20),
+  };
 }
 
-// Asia/Taipei = UTC+8, no DST. All test times here are >= 08:00 local so the
-// UTC date always matches `dateKey`.
-function taipeiNow(dateKey: string, hhmm: string): Date {
-  const [h, m] = hhmm.split(":").map(Number);
-  const utcH = h - 8;
-  return new Date(`${dateKey}T${String(utcH).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`);
-}
+describe("runScheduler (stateless)", () => {
+  it("does nothing on a non-workday", async () => {
+    const d = deps({ dayInfo: { isWorkday: false, onLeave: false, shiftStart: null, shiftEnd: null } });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).not.toHaveBeenCalled();
+    expect(d.notify).not.toHaveBeenCalled();
+  });
 
-function fakeLogin(impl: () => Promise<Session> = async () => SESSION) {
-  return vi.fn(impl) as any;
-}
-function fakeGetDayInfo(info: DayInfo) {
-  return vi.fn(async () => info) as any;
-}
-function successPunch(punchDate = "2026-07-01T01:16:00Z", locationName = "Office") {
-  return vi.fn(
-    async (): Promise<PunchOutcome> => ({
-      outcome: "success",
-      attendanceHistoryId: "AH",
-      punchDate,
-      locationName,
-    }),
-  ) as any;
-}
-function alreadyDonePunch() {
-  return vi.fn(async (): Promise<PunchOutcome> => ({ outcome: "already_done", detail: "already clocked in" })) as any;
-}
-function failurePunch() {
-  return vi.fn(async (): Promise<PunchOutcome> => ({ outcome: "failure", detail: "boom" })) as any;
-}
-function fakeNotify() {
-  return vi.fn(async () => {}) as any;
-}
+  it("skips full-day leave when RESPECT_LEAVE=true", async () => {
+    const d = deps({ dayInfo: { ...WORKDAY, onLeave: true } });
+    await runScheduler({ ...baseEnv, RESPECT_LEAVE: "true" }, d);
+    expect(d.punch).not.toHaveBeenCalled();
+  });
 
-// ---- tests --------------------------------------------------------------
+  it("still punches on a leave day when RESPECT_LEAVE=false (default)", async () => {
+    const d = deps({ dayInfo: { ...WORKDAY, onLeave: true } });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).toHaveBeenCalledOnce();
+  });
 
-describe("runScheduler", () => {
-  it("1. non-workday: saves a skip plan, never punches", async () => {
-    const dateKey = "2026-07-01";
-    const env = baseEnv();
-    const login = fakeLogin();
-    const getDayInfo = fakeGetDayInfo(NON_WORKDAY);
-    const punch = failurePunch();
-    const notify = fakeNotify();
+  it("does not punch before the target time", async () => {
+    const d = deps({ now: tw(9, 10) }); // before 09:19
+    await runScheduler(baseEnv, d);
+    expect(d.getDayInfo).toHaveBeenCalledOnce();
+    expect(d.punch).not.toHaveBeenCalled();
+    expect(d.notify).not.toHaveBeenCalled();
+  });
 
-    await runScheduler(env, {
-      login,
-      getDayInfo,
-      punch,
-      notify,
-      now: taipeiNow(dateKey, "09:00"),
-      rand: () => 0,
+  it("clocks in past the target and emails success", async () => {
+    const d = deps({ now: tw(9, 20) });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).toHaveBeenCalledWith(expect.anything(), expect.anything(), "in");
+    expect(d.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "success" }));
+  });
+
+  it("stays quiet on already_done", async () => {
+    const d = deps({ now: tw(9, 20), punchOutcome: { outcome: "already_done", detail: "exists" } });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).toHaveBeenCalledOnce();
+    expect(d.notify).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet on cooldown (a punch just happened)", async () => {
+    const d = deps({ now: tw(9, 20), punchOutcome: { outcome: "cooldown", detail: "wait 8 minutes" } });
+    await runScheduler(baseEnv, d);
+    expect(d.punch).toHaveBeenCalledOnce();
+    expect(d.notify).not.toHaveBeenCalled();
+  });
+
+  it("emails a failure on a genuine failure", async () => {
+    const d = deps({ now: tw(9, 20), punchOutcome: { outcome: "failure", detail: "boom" } });
+    await runScheduler(baseEnv, d);
+    expect(d.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "failure" }));
+  });
+
+  it("clocks OUT in the evening (direction from time of day)", async () => {
+    const d = deps({ now: tw(18, 40) }); // past targetOut 18:31
+    await runScheduler(baseEnv, d);
+    expect(d.punch).toHaveBeenCalledWith(expect.anything(), expect.anything(), "out");
+  });
+
+  it("emails a failure and rethrows when login throws", async () => {
+    const login = vi.fn(async () => {
+      throw new Error("login down");
     });
-
-    expect(punch).not.toHaveBeenCalled();
-    const plan = await getPlan(env.STATE, dateKey);
-    expect(plan).toEqual({ kind: "skip", reason: "not a workday" });
-  });
-
-  it("2a. on leave + respectLeave true: saves a skip plan, never punches", async () => {
-    const dateKey = "2026-07-02";
-    const env = baseEnv({ RESPECT_LEAVE: "true" });
-    const punch = failurePunch();
-
-    await runScheduler(env, {
-      login: fakeLogin(),
-      getDayInfo: fakeGetDayInfo(ON_LEAVE),
-      punch,
-      notify: fakeNotify(),
-      now: taipeiNow(dateKey, "09:00"),
-      rand: () => 0,
-    });
-
-    expect(punch).not.toHaveBeenCalled();
-    const plan = await getPlan(env.STATE, dateKey);
-    expect(plan).toEqual({ kind: "skip", reason: "on leave" });
-  });
-
-  it("2b. on leave + respectLeave false: builds an active plan and punches", async () => {
-    const dateKey = "2026-07-03";
-    const env = baseEnv({ RESPECT_LEAVE: "false" });
-    const punch = successPunch();
-
-    await runScheduler(env, {
-      login: fakeLogin(),
-      getDayInfo: fakeGetDayInfo(ON_LEAVE),
-      punch,
-      notify: fakeNotify(),
-      now: taipeiNow(dateKey, "09:16"), // past targetIn
-      rand: () => 0,
-    });
-
-    expect(punch).toHaveBeenCalledTimes(1);
-    const plan = await getPlan(env.STATE, dateKey);
-    expect(plan?.kind).toBe("active");
-    expect((plan as any).inDone).toBe(true);
-  });
-
-  it("3. workday, before targetIn: saves active plan, does not punch yet", async () => {
-    const dateKey = "2026-07-04";
-    const env = baseEnv();
-    const punch = failurePunch();
-
-    await runScheduler(env, {
-      login: fakeLogin(),
-      getDayInfo: fakeGetDayInfo(WORKDAY),
-      punch,
-      notify: fakeNotify(),
-      now: taipeiNow(dateKey, "09:00"), // before targetIn "09:15"
-      rand: () => 0,
-    });
-
-    expect(punch).not.toHaveBeenCalled();
-    const plan = await getPlan(env.STATE, dateKey);
-    expect(plan).toEqual({
-      kind: "active",
-      targetIn: TARGET_IN,
-      targetOut: TARGET_OUT,
-      escalateInAt: ESCALATE_IN_AT,
-      inDone: false,
-      outDone: false,
-      escalatedIn: false,
-    });
-  });
-
-  it("4. workday, past targetIn: punches once; a second run same day is idempotent", async () => {
-    const dateKey = "2026-07-05";
-    const env = baseEnv();
-    const getDayInfo = fakeGetDayInfo(WORKDAY);
-    const punch = successPunch();
-    const now = taipeiNow(dateKey, "09:16");
-
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify: fakeNotify(), now, rand: () => 0 });
-    expect(punch).toHaveBeenCalledTimes(1);
-
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify: fakeNotify(), now, rand: () => 0 });
-    expect(punch).toHaveBeenCalledTimes(1); // not called again
-
-    const plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).inDone).toBe(true);
-  });
-
-  it("5. punch failure: notifies failure, inDone stays false, next fire retries", async () => {
-    const dateKey = "2026-07-06";
-    const env = baseEnv();
-    const getDayInfo = fakeGetDayInfo(WORKDAY);
-    const punch = failurePunch();
-    const notify = fakeNotify();
-    const now = taipeiNow(dateKey, "09:16"); // past targetIn, before escalateInAt
-
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify, now, rand: () => 0 });
-    expect(punch).toHaveBeenCalledTimes(1);
-    expect(notify).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ level: "failure", subject: "⚠️ clock-in FAILED", body: "boom" }),
-    );
-    let plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).inDone).toBe(false);
-
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify, now, rand: () => 0 });
-    expect(punch).toHaveBeenCalledTimes(2); // retried
-
-    plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).inDone).toBe(false);
-  });
-
-  it("6. already_done outcome is treated as success: inDone set, no failure notify", async () => {
-    const dateKey = "2026-07-07";
-    const env = baseEnv();
-    const punch = alreadyDonePunch();
-    const notify = fakeNotify();
-
-    await runScheduler(env, {
-      login: fakeLogin(),
-      getDayInfo: fakeGetDayInfo(WORKDAY),
-      punch,
-      notify,
-      now: taipeiNow(dateKey, "09:16"),
-      rand: () => 0,
-    });
-
-    const plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).inDone).toBe(true);
-    for (const call of notify.mock.calls) {
-      expect((call[1] as any).level).not.toBe("failure");
-    }
-  });
-
-  it("7. escalation fires exactly once across two fires while still not clocked in", async () => {
-    const dateKey = "2026-07-08";
-    const env = baseEnv();
-    const getDayInfo = fakeGetDayInfo(WORKDAY);
-    const punch = failurePunch();
-    const notify = fakeNotify();
-    const now = taipeiNow(dateKey, "09:25"); // >= escalateInAt "09:20"
-
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify, now, rand: () => 0 });
-    await runScheduler(env, { login: fakeLogin(), getDayInfo, punch, notify, now, rand: () => 0 });
-
-    const escalationCalls = notify.mock.calls.filter(
-      (c: any[]) => (c[1] as any).subject === "🚨 Apollo clock-in NOT done — punch manually",
-    );
-    expect(escalationCalls).toHaveLength(1);
-
-    const plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).escalatedIn).toBe(true);
-    expect((plan as any).inDone).toBe(false);
-  });
-
-  it("8. clock-out past targetOut: punches out, sets outDone", async () => {
-    const dateKey = "2026-07-09";
-    const env = baseEnv();
-    const seeded: DayPlan = {
-      kind: "active",
-      targetIn: TARGET_IN,
-      targetOut: TARGET_OUT,
-      escalateInAt: ESCALATE_IN_AT,
-      inDone: true,
-      outDone: false,
-      escalatedIn: true,
-    };
-    await savePlan(env.STATE, dateKey, seeded);
-    const punch = successPunch();
-
-    await runScheduler(env, {
-      login: fakeLogin(),
-      getDayInfo: fakeGetDayInfo(WORKDAY),
-      punch,
-      notify: fakeNotify(),
-      now: taipeiNow(dateKey, "18:40"), // past targetOut "18:35"
-      rand: () => 0,
-    });
-
-    expect(punch).toHaveBeenCalledTimes(1);
-    expect(punch.mock.calls[0][2]).toBe("out");
-    const plan = await getPlan(env.STATE, dateKey);
-    expect((plan as any).outDone).toBe(true);
-  });
-
-  it("9. login throws: notifies failure, rejects, no plan saved", async () => {
-    const dateKey = "2026-07-10";
-    const env = baseEnv();
-    const notify = fakeNotify();
-    const login = fakeLogin(async () => {
-      throw new Error("login exploded");
-    });
-
-    await expect(
-      runScheduler(env, {
-        login,
-        getDayInfo: fakeGetDayInfo(WORKDAY),
-        punch: failurePunch(),
-        notify,
-        now: taipeiNow(dateKey, "09:16"),
-        rand: () => 0,
-      }),
-    ).rejects.toThrow("login exploded");
-
-    expect(notify).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ level: "failure", subject: "⚠️ Apollo scheduler error" }),
-    );
-    const plan = await getPlan(env.STATE, dateKey);
-    expect(plan).toBeNull();
+    const d = deps({ now: tw(9, 20), login: login as any });
+    await expect(runScheduler(baseEnv, d)).rejects.toThrow("login down");
+    expect(d.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "failure" }));
   });
 });
