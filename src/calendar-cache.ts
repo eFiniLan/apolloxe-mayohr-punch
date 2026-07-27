@@ -114,3 +114,57 @@ export async function buildCache(
     days,
   };
 }
+
+function serialize(file: CacheFile): string {
+  return JSON.stringify(file, null, 2) + "\n";
+}
+
+/**
+ * Read today's DayInfo from the store, refreshing (fetch current + next month,
+ * rewrite) when the cache is missing, corrupt, stale (>7d), or lacks today. A
+ * failed write is logged but non-fatal — a cache problem must never block a punch.
+ */
+export async function cachedDayInfo(
+  session: Session,
+  cfg: Config,
+  dateKey: string,
+  store: CacheStore,
+  opts: CacheOpts = {},
+): Promise<{ info: DayInfo; source: "cache" | "fresh" }> {
+  const now = opts.now ?? (() => new Date());
+
+  let cached: CacheFile | null = null;
+  try {
+    const raw = await store.read(CACHE_KEY);
+    if (raw) cached = JSON.parse(raw) as CacheFile;
+  } catch {
+    cached = null; // unreadable or corrupt → refresh
+  }
+  if (cached && isFresh(cached, dateKey, now())) {
+    return { info: cacheDayToInfo(cached.days[dateKey]), source: "cache" };
+  }
+
+  const file = await buildCache(session, cfg, dateKey, opts);
+  try {
+    await store.write(CACHE_KEY, serialize(file));
+  } catch (e) {
+    console.error(`calendar-cache: write failed (${(e as Error).message}); continuing`);
+  }
+
+  const day = file.days[dateKey];
+  if (!day) throw new Error(`No calendar entry for ${dateKey}`);
+  return { info: cacheDayToInfo(day), source: "fresh" };
+}
+
+/** Force a refresh regardless of freshness. Used by `npm run calendar:sync`. */
+export async function syncCalendar(
+  session: Session,
+  cfg: Config,
+  dateKey: string,
+  store: CacheStore,
+  opts: CacheOpts = {},
+): Promise<CacheFile> {
+  const file = await buildCache(session, cfg, dateKey, opts);
+  await store.write(CACHE_KEY, serialize(file));
+  return file;
+}

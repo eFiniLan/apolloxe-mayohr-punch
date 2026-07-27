@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   dayLabel, infoToCacheDay, cacheDayToInfo, isFresh,
-  targetMonths, monthLabel, buildCache,
-  type CacheFile, type CacheOpts,
+  targetMonths, monthLabel, buildCache, cachedDayInfo, syncCalendar, CACHE_KEY,
+  type CacheFile, type CacheOpts, type CacheStore,
 } from "../src/calendar-cache";
 import type { DayInfo } from "../src/calendar";
 
@@ -79,5 +79,86 @@ describe("buildCache", () => {
     expect(file.months).toEqual(["2026-07", "2026-08"]);
     expect(Object.keys(file.days).sort()).toEqual(["2026-07-04", "2026-07-23", "2026-08-01"]);
     expect(cacheDayToInfo(file.days["2026-07-23"])).toEqual(WORK);
+  });
+});
+
+function freshFileJson(now = "2026-07-27T12:00:00Z"): string {
+  return JSON.stringify({
+    generatedAt: now,
+    timezone: "Asia/Taipei",
+    months: ["2026-07", "2026-08"],
+    days: { "2026-07-27": { workday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30", label: "x" } },
+  });
+}
+
+const OPTS: CacheOpts = {
+  now: () => new Date("2026-07-27T12:00:00Z"),
+  getMonthInfo: vi.fn(async (_s: any, _c: any, _y: number, m: number) =>
+    m === 7 ? { "2026-07-27": WORK } : { "2026-08-01": OFF }) as any,
+};
+
+function memStore(initial: string | null): CacheStore & { written: string[] } {
+  let cur = initial;
+  const written: string[] = [];
+  return {
+    written,
+    read: async () => cur,
+    write: async (_k, c) => { cur = c; written.push(c); },
+  };
+}
+
+describe("cachedDayInfo", () => {
+  it("returns the cached day without fetching when fresh", async () => {
+    const getMonthInfo = vi.fn();
+    const store = memStore(freshFileJson());
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, { ...OPTS, getMonthInfo: getMonthInfo as any });
+    expect(r).toEqual({ info: WORK, source: "cache" });
+    expect(getMonthInfo).not.toHaveBeenCalled();
+    expect(store.written).toHaveLength(0);
+  });
+
+  it("refreshes and writes when the store is empty", async () => {
+    const store = memStore(null);
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
+    expect(r.source).toBe("fresh");
+    expect(r.info).toEqual(WORK);
+    expect(store.written).toHaveLength(1);
+    expect(store.written[0]).toContain('"2026-07-27"');
+    expect(store.written[0].endsWith("\n")).toBe(true); // pretty-printed + trailing newline
+  });
+
+  it("refreshes when the cached file is stale (>7d)", async () => {
+    const store = memStore(freshFileJson("2026-07-01T12:00:00Z"));
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
+    expect(r.source).toBe("fresh");
+  });
+
+  it("treats a corrupt cache file as absent and refreshes (no throw)", async () => {
+    const store = memStore("{ not json");
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
+    expect(r.source).toBe("fresh");
+    expect(r.info).toEqual(WORK);
+  });
+
+  it("does not fail the punch if writing the cache throws", async () => {
+    const store: CacheStore = { read: async () => null, write: async () => { throw new Error("EACCES"); } };
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
+    expect(r).toEqual({ info: WORK, source: "fresh" });
+  });
+
+  it("throws a clear error when the day is genuinely absent after refresh", async () => {
+    const store = memStore(null);
+    const r = cachedDayInfo(session, cfg, "2026-07-27", store, { ...OPTS, getMonthInfo: (async () => ({})) as any });
+    await expect(r).rejects.toThrow(/2026-07-27/);
+  });
+});
+
+describe("syncCalendar", () => {
+  it("always builds and writes, returning the file", async () => {
+    const store = memStore(freshFileJson());
+    const file = await syncCalendar(session, cfg, "2026-07-27", store, OPTS);
+    expect(store.written).toHaveLength(1); // ignores the fresh cache; forces a refresh
+    expect(file.months).toEqual(["2026-07", "2026-08"]);
+    expect(Object.keys(file.days)).toContain("2026-07-27");
   });
 });
