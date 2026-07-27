@@ -10,10 +10,11 @@
 // Coords/location/timing: env (PUNCH_LATITUDE, …), else the Worker defaults.
 
 import { login } from "../src/auth";
-import { getDayInfo } from "../src/calendar";
+import { cachedDayInfo } from "../src/calendar-cache";
 import { punch } from "../src/punch";
 import { nowParts } from "../src/time";
 import { localConfig } from "./_env";
+import { fileStore } from "./cache-fs";
 
 const dir = (process.argv[2] || "").toLowerCase();
 if (dir !== "in" && dir !== "out") {
@@ -36,9 +37,9 @@ const session = await login(cfg);
 console.log("  \x1b[32m✓\x1b[0m session established (module cookie held)");
 
 const { dateKey } = nowParts(cfg.timezone);
-console.log(`\n\x1b[36m▶ read calendar (calendar.getDayInfo) for ${dateKey}\x1b[0m`);
-const info = await getDayInfo(session, cfg, dateKey);
-console.log(`  workday=${info.isWorkday}  shift=${info.shiftStart ?? "--"}–${info.shiftEnd ?? "--"}  onLeave=${info.onLeave}`);
+console.log(`\n\x1b[36m▶ read calendar (cached) for ${dateKey}\x1b[0m`);
+const { info, source } = await cachedDayInfo(session, cfg, dateKey, fileStore);
+console.log(`  workday=${info.isWorkday}  shift=${info.shiftStart ?? "--"}–${info.shiftEnd ?? "--"}  onLeave=${info.onLeave}  \x1b[2m(${source})\x1b[0m`);
 if (!info.isWorkday) {
   console.log("\n  Not a workday — the Worker would SKIP. Not punching.");
   process.exit(0);
