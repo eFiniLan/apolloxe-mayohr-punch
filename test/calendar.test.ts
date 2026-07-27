@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { getDayInfo } from "../src/calendar";
+import { getDayInfo, getMonthInfo } from "../src/calendar";
 import fixture from "../fixtures/calendar.json";
 
 const cfg: any = {
@@ -92,6 +92,37 @@ describe("getDayInfo", () => {
     const cookieHeader = calls[0].init.headers.cookie ?? calls[0].init.headers.Cookie;
     expect(cookieHeader).toBe(session.cookie);
     // REQUIRED by the live API — omitting it changes the response shape (no data.calendars).
+    expect(calls[0].init.headers["accept-language"]).toBe("en-us");
+  });
+});
+
+describe("getMonthInfo", () => {
+  it("returns a DayInfo map for the whole month keyed by YYYY-MM-DD", async () => {
+    const f = mockFetch();
+    const month = await getMonthInfo(session, cfg, 2026, 7, f as any);
+
+    expect(Object.keys(month).sort()).toEqual([
+      "2026-07-03", "2026-07-04", "2026-07-23", "2026-07-24",
+    ]);
+    expect(month["2026-07-23"]).toEqual({
+      isWorkday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30",
+    });
+    expect(month["2026-07-04"]).toEqual({
+      isWorkday: false, onLeave: false, shiftStart: null, shiftEnd: null,
+    });
+  });
+
+  it("hits the URL with the given year/month and sends the session cookie + accept-language", async () => {
+    const calls: Array<{ url: string; init: any }> = [];
+    const f = vi.fn(async (url: any, init: any = {}) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify(fixture), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    });
+    await getMonthInfo(session, cfg, 2026, 7, f as any);
+    expect(calls[0].url).toBe(`${CAL_URL_PREFIX}?year=2026&month=7`);
+    expect(calls[0].init.headers.cookie).toBe(session.cookie);
     expect(calls[0].init.headers["accept-language"]).toBe("en-us");
   });
 });

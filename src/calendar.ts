@@ -81,21 +81,31 @@ function toLocalHHMM(isoUtc: string, tz: string): string {
   }).format(new Date(isoUtc));
 }
 
+function deriveDayInfo(entry: CalendarDay, tz: string): DayInfo {
+  const ss = entry.shiftSchedule;
+  const isWorkday = ss?.workOnTime != null;
+  const schedOn = ss ? (ss.originalWorkOnTime ?? ss.workOnTime) : null;
+  const schedOff = ss ? (ss.originalWorkOffTime ?? ss.workOffTime) : null;
+  const shiftStart = isWorkday && schedOn ? toLocalHHMM(schedOn, tz) : null;
+  const shiftEnd = isWorkday && schedOff ? toLocalHHMM(schedOff, tz) : null;
+  const onLeave =
+    isWorkday &&
+    (coversWholeShift(entry.leaveSheets, schedOn, schedOff) ||
+      coversWholeShift(entry.tripSheets, schedOn, schedOff));
+  return { isWorkday, onLeave, shiftStart, shiftEnd };
+}
+
 /**
- * Read the MayoHR/Apollo scheduling calendar for the month containing
- * `dateKey` and map that one day's entry to a DayInfo.
- * See docs/api-facts.md "Calendar / shift schedule" for the endpoint and
- * derivation rules this implements.
+ * Read the scheduling calendar for one month and map every day to a DayInfo,
+ * keyed "YYYY-MM-DD". See docs/api-facts.md "Calendar / shift schedule".
  */
-export async function getDayInfo(
+export async function getMonthInfo(
   session: Session,
   cfg: Config,
-  dateKey: string,
+  year: number,
+  month: number,
   fetchImpl: typeof fetch = fetch,
-): Promise<DayInfo> {
-  const [yearStr, monthStr] = dateKey.split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
+): Promise<Record<string, DayInfo>> {
   const url = `${CALENDAR_URL}?year=${year}&month=${month}`;
 
   const res = await fetchImpl(url, {
@@ -103,8 +113,8 @@ export async function getDayInfo(
       cookie: session.cookie,
       "user-agent": cfg.userAgent,
       accept: "*/*",
-      // REQUIRED: without accept-language the API returns a different (numeric-indexed)
-      // shape with no `data.calendars` — verified against the live API.
+      // REQUIRED: without accept-language the API returns a different
+      // (numeric-indexed) shape with no `data.calendars`.
       "accept-language": "en-us",
       "content-type": "application/json",
       referer: REFERER_URL,
@@ -122,24 +132,28 @@ export async function getDayInfo(
     throw new Error(`calendar: response was not JSON (${(e as Error).message})`);
   }
 
-  const days = json.data?.calendars ?? [];
-  const entry = days.find((d) => String(d.date).startsWith(dateKey));
-  if (!entry) {
+  const out: Record<string, DayInfo> = {};
+  for (const entry of json.data?.calendars ?? []) {
+    const dateKey = String(entry.date).slice(0, 10); // "YYYY-MM-DDT..." -> "YYYY-MM-DD"
+    out[dateKey] = deriveDayInfo(entry, cfg.timezone);
+  }
+  return out;
+}
+
+/**
+ * DayInfo for a single day. Thin wrapper over getMonthInfo.
+ */
+export async function getDayInfo(
+  session: Session,
+  cfg: Config,
+  dateKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<DayInfo> {
+  const [yearStr, monthStr] = dateKey.split("-");
+  const month = await getMonthInfo(session, cfg, Number(yearStr), Number(monthStr), fetchImpl);
+  const info = month[dateKey];
+  if (!info) {
     throw new Error(`No calendar entry for ${dateKey}`);
   }
-
-  const ss = entry.shiftSchedule;
-  const isWorkday = ss?.workOnTime != null;
-  const schedOn = ss ? (ss.originalWorkOnTime ?? ss.workOnTime) : null;
-  const schedOff = ss ? (ss.originalWorkOffTime ?? ss.workOffTime) : null;
-
-  const shiftStart = isWorkday && schedOn ? toLocalHHMM(schedOn, cfg.timezone) : null;
-  const shiftEnd = isWorkday && schedOff ? toLocalHHMM(schedOff, cfg.timezone) : null;
-
-  const onLeave =
-    isWorkday &&
-    (coversWholeShift(entry.leaveSheets, schedOn, schedOff) ||
-      coversWholeShift(entry.tripSheets, schedOn, schedOff));
-
-  return { isWorkday, onLeave, shiftStart, shiftEnd };
+  return info;
 }
