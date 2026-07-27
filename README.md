@@ -69,6 +69,13 @@ npm install
    npm run punch in  # optional: a REAL end-to-end clock-in (or DRY_RUN=true to dry-run)
    ```
 
+   `npm run punch` reads your shift from a local `calendar-cache.json` instead of
+   hitting the calendar API every time. It auto-refreshes when the file is missing,
+   older than 7 days, or doesn't cover today (caching the current + next month).
+   Run `npm run calendar:sync` to pre-warm or force a refresh WITHOUT punching —
+   handy right after a schedule change. The file is gitignored (your personal
+   schedule) and human-readable — open it to verify your upcoming shifts.
+
 ## Go live safely
 
 `wrangler.toml` ships with `DRY_RUN = "true"` — the Worker runs the whole pipeline
@@ -112,9 +119,12 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 ## Layout
 
 - `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
-  `notify` (Resend), `time`, `scheduler` (stateless per-fire logic), `index` (cron handler).
+  `notify` (Resend), `time`, `scheduler` (stateless per-fire logic), `index` (cron handler),
+  `calendar-cache` (storage-agnostic shift cache used by the CLI; a future Worker
+  could reuse it with a KV store).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
-  clock in/out), `list-locations.ts` (pick your `PUNCHES_LOCATION_ID`),
+  clock in/out), `list-locations.ts` (pick your `PUNCHES_LOCATION_ID`), `sync-calendar.ts`
+  (`npm run calendar:sync`), `cache-fs.ts` (file-backed cache store),
   `_env.ts` (shared `.dev.vars` + config bootstrap).
 - `docs/` — the design spec, plan, and confirmed API facts.

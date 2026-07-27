@@ -50,6 +50,14 @@ Per-day entry fields that matter:
 - `tripSheets[]`: business trips (same idea).
 - `overtimeSheets[]`, `calendarEvent` (holiday info; `null` on normal days).
 
+The CLI `punch` command reads this through a local `calendar-cache.json`
+(current + next month, refreshed when missing / >7 days old / missing today) via
+`src/calendar-cache.ts`, a storage-agnostic core (`getMonthInfo` is the shared
+parser) whose only I/O is an injected `CacheStore` — the CLI injects a file store
+(`scripts/cache-fs.ts`). The deployed Worker does NOT cache — it stays stateless
+and reads live each fire. If a Worker cache is ever wanted, inject a KV-backed
+`CacheStore` and refresh in `ctx.waitUntil` (non-blocking); no core changes.
+
 ### Derivation rules for `DayInfo`
 - Timezone: `Asia/Taipei` (UTC+8, no DST).
 - `isWorkday` = `shiftSchedule?.workOnTime != null` (equivalently `workSlots.length > 0`).
