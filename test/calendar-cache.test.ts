@@ -60,6 +60,10 @@ describe("isFresh", () => {
   it("stale when generatedAt is unparseable", () => {
     expect(isFresh(file("not-a-date", { "2026-07-27": {} }), "2026-07-27", now)).toBe(false);
   });
+  it("is not fresh (does not throw) when days is missing/wrong shape", () => {
+    expect(isFresh({ generatedAt: "2026-07-27T09:00:00Z" } as any, "2026-07-27", now)).toBe(false);
+    expect(isFresh({ generatedAt: "2026-07-27T09:00:00Z", days: null } as any, "2026-07-27", now)).toBe(false);
+  });
 });
 
 describe("buildCache", () => {
@@ -135,6 +139,13 @@ describe("cachedDayInfo", () => {
 
   it("treats a corrupt cache file as absent and refreshes (no throw)", async () => {
     const store = memStore("{ not json");
+    const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
+    expect(r.source).toBe("fresh");
+    expect(r.info).toEqual(WORK);
+  });
+
+  it("treats a valid-JSON wrong-shape cache file as absent and refreshes (no throw)", async () => {
+    const store = memStore("{}");
     const r = await cachedDayInfo(session, cfg, "2026-07-27", store, OPTS);
     expect(r.source).toBe("fresh");
     expect(r.info).toEqual(WORK);

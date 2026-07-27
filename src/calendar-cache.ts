@@ -84,7 +84,7 @@ export function targetMonths(dateKey: string): Array<{ year: number; month: numb
 
 /** Fresh = today is present AND generated within the refresh window. */
 export function isFresh(file: CacheFile, dateKey: string, now: Date): boolean {
-  if (!file.days[dateKey]) return false;
+  if (!file.days?.[dateKey]) return false;
   const gen = Date.parse(file.generatedAt);
   if (Number.isNaN(gen)) return false;
   return now.getTime() - gen <= REFRESH_AFTER_MS;
