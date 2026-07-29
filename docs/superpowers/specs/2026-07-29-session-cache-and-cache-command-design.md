@@ -3,21 +3,31 @@
 **Date:** 2026-07-29
 **Status:** approved (decisions settled), ready for spec review → planning
 
-## Goal
+## Two parts (this spec is Part 1)
 
-Make the tool **flexible and reusable** — usable by the author now, a colleague,
-or later an Agent / the deployed Worker — by driving everything from `Config` and
-routing every caller through one shared punch flow. Concretely:
+- **Part 1 — a solid CLI tool, usable via Agents (this spec).** Everything below.
+  Builds the reusable `src/` core (`runPunch`) so an Agent can call it directly,
+  the session cache, the toggles, and `--force`. **The Worker (`src/scheduler.ts`,
+  `src/index.ts`) is left untouched.**
+- **Part 2 — a thin Cloudflare Worker wrapper (later, its own spec).** Once the
+  CLI core is solid, make the Worker a thin wrapper over `runPunch` (its
+  time-gating + notify + a KV `CacheStore`). Deferred; not built here.
 
-1. A single reusable `src/` orchestration, `runPunch`, that CLI, Worker, and a
-   future Agent all call (instead of three copies of "session → check → punch").
+## Goal (Part 1)
+
+Make the CLI **flexible and reusable** — usable by the author now, a colleague, or
+an Agent — by driving everything from `Config` and routing the punch through one
+shared `src/` flow. Concretely:
+
+1. A single reusable `src/` orchestration, `runPunch`, that the CLI and a future
+   Agent call (and that Part 2's Worker wrapper will call too).
 2. A **session cookie cache** so the ~10-day `__ModuleSessionCookie` is reused
    across runs instead of a fresh login every time.
 3. Two independent **config toggles** (calendar check, session cache) plus a
    per-run **`--force`** override on `punch`.
 
-Everything is config-driven; nothing is hardcoded, so each user/Agent/Worker
-supplies its own `Config`.
+Everything is config-driven; nothing is hardcoded, so each user/Agent supplies
+its own `Config`.
 
 ## Config: one model, no value-flags
 
@@ -59,7 +69,9 @@ safe (a GET has no side effects — we never punch with an unvalidated cookie).
 ## Architecture
 
 `src/` holds the reusable core; `scripts/` are thin CLI adapters. The deployed
-Worker is untouched behaviorally (stateless, no filesystem) but shares the core.
+Worker (`src/scheduler.ts`, `src/index.ts`) is **not touched in Part 1** — it
+keeps its own inline flow and stays green; Part 2 rewrites it as a thin wrapper
+over `runPunch`.
 
 ### `src/cache-store.ts` (new) — shared storage interface
 
@@ -118,7 +130,8 @@ Worker scheduler, and a future Agent call.
 - **`scripts/punch-now.ts`**: parse `direction` + `--force/-f`; `const r = await runPunch(cfg, fileStore, { direction, force });` then print `r` (session source, workday/skip, outcome). Thin.
 - **`scripts/list-locations.ts`, `scripts/config-cli.ts`** (no-id `set location`): use `acquireSession(cfg, fileStore)` in place of `login(cfg)`.
 - **`scripts/sync-calendar.ts`** (`calendar:sync`): `login` fresh + `saveSession(fileStore, session)` (also warms the cookie) when `SESSION_CACHE` is on, then `syncCalendar`.
-- **`src/scheduler.ts`** (Worker): keep its time-gating/direction-from-time/leave/notify. Replace its inline `login` + `getDayInfo`(workday) + `punch` with a call to `runPunch(cfg, null, { direction, force: true })` at punch time (it has already done timing + workday logic; `force:true` avoids a redundant re-check, `store:null` keeps it stateless/fresh-login). Its existing tests guard the refactor.
+- **`src/scheduler.ts` (Worker): NOT changed in Part 1.** It keeps its inline
+  `login` + `getDayInfo` + `punch` + notify. Part 2 will make it call `runPunch`.
 
 ### Config CLI toggles (`scripts/config-cli.ts`, `scripts/dev-vars.ts`)
 
@@ -138,12 +151,13 @@ Worker scheduler, and a future Agent call.
 - `test/flow.test.ts`: `runPunch` with injected deps — calendarCheck off → no calendar call, punches; `force:true` → skips check even with calendarCheck on; not-a-workday → `step:"skipped"`; workday → punches, returns outcome + sessionSource; `store:null` → login path (no session cache). `acquireSession`: sessionCache off / store null → login; on → getSession with a validator.
 - `test/dev-vars.test.ts`: `buildEntries` cases for `calendar`/`session`.
 - `test/config.test.ts`: `calendarCheck`/`sessionCache` default `true`; `"false"` → `false`.
-- `test/scheduler.test.ts`: existing tests stay green after delegating the punch step to `runPunch` (adjust mocks as needed).
+- `test/scheduler.test.ts`: unchanged and must stay green (scheduler is not touched in Part 1).
 - Existing calendar-cache / locations / config tests stay green after the `CacheStore` extraction.
 - Entrypoints + the live login/validator path verified by a real run (against a throwaway `.dev.vars`).
 
-## Out of scope
+## Out of scope (Part 1)
 
-- Worker-side session/calendar *caching* (stays stateless; a future KV `CacheStore` can reuse this core via `runPunch(cfg, kvStore, …)`).
+- **The Worker (Part 2).** `src/scheduler.ts`/`src/index.ts` are untouched here;
+  the thin-wrapper-over-`runPunch` rewrite and any KV `CacheStore` are Part 2.
 - Any CLI value-flags beyond `--force` (`--user/--pass/--location/--pos` deliberately excluded).
 - Building the Agent/MCP itself (this makes the core ready for one; the Agent is a later, separate effort).
