@@ -17,17 +17,17 @@ import { acquireSession } from "../src/flow";
 import { fileStore } from "./cache-fs";
 import { getLocations, formatLocations } from "../src/locations";
 
+const USAGE =
+  "Usage:\n" +
+  "  npm run config set username <email>\n" +
+  "  npm run config set password            # prompted, hidden\n" +
+  "  npm run config set location [<PunchesLocationId>]   # no id = list your locations\n" +
+  "  npm run config set pos <lat> <lng>\n" +
+  "  npm run config set calendar on|off     # check today's shift before punching\n" +
+  "  npm run config set session on|off      # reuse the cached login cookie";
+
 function usage(): never {
-  console.error(
-    "Usage:\n" +
-      "  npm run config set username <email>\n" +
-      "  npm run config set password            # prompted, hidden\n" +
-      "  npm run config set location [<PunchesLocationId>]   # no id = list your locations\n" +
-      "  npm run config set pos <lat> <lng>\n" +
-      "  npm run config set calendar on|off     # check today's shift before punching\n" +
-      "  npm run config set session on|off      # reuse the cached login cookie\n" +
-      "  npm run config                          # show the effective config",
-  );
+  console.error(USAGE);
   process.exit(1);
 }
 
@@ -153,5 +153,7 @@ function cmdList(): void {
 
 const [cmd, field, ...values] = process.argv.slice(2);
 if (cmd === "set") await cmdSet(field, values);
-else if (!cmd || cmd === "list") cmdList(); // bare `config` shows the effective config
-else usage();
+else if (!cmd || cmd === "list") {
+  cmdList(); // bare `config` shows the effective config…
+  console.log("\n" + USAGE); // …and the command help below it
+} else usage();
