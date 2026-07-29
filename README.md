@@ -39,13 +39,14 @@ login → read today's calendar → workday? ──no─→ skip (weekend/holida
 npm install
 ```
 
-1. **Local credentials** — set them with the config CLI (writes gitignored
-   `.dev.vars`, which is also what `wrangler dev` reads):
+1. **Credentials** — via env (`export`) or the config CLI (writes gitignored `.dev.vars`):
    ```bash
+   export MAYO_USERNAME=you@company.com MAYO_PASSWORD=…    # or:
    npm run config set username you@company.com
-   npm run config set password            # prompted, hidden — not echoed or stored in shell history
+   npm run config set password            # prompted, hidden — never argv/history
    ```
-   (You can also hand-create `.dev.vars` with `MAYO_USERNAME=` / `MAYO_PASSWORD=` lines.)
+   Precedence is **env > `.dev.vars` > defaults**, so `export` overrides the file.
+   The password is never taken as a CLI argument (it would leak to shell history / `ps`).
 
 2. **Pick your punch location** (which office to report):
    ```bash
@@ -83,6 +84,21 @@ npm install
    Run `npm run calendar:sync` to pre-warm or force a refresh WITHOUT punching —
    handy right after a schedule change. The file is gitignored (your personal
    schedule) and human-readable — open it to verify your upcoming shifts.
+
+### Caching & toggles
+
+`punch` runs the shared `src/flow.runPunch` core (also callable by an Agent). Two
+independent toggles, both **on** by default, set via `config` (or env
+`CALENDAR_CHECK` / `SESSION_CACHE`):
+
+- `npm run config set calendar on|off` — check today's shift (workday guard) before punching, or skip it.
+- `npm run config set session on|off` — reuse the ~10-day login cookie (validated before use), or log in fresh each run.
+- `npm run punch in -- --force` (`-f`) — skip the calendar check for that one run. (the `--` is required so npm forwards the flag to the script)
+- `npm run config list` shows the effective config, both toggles, password masked.
+
+The session cookie lives in gitignored `session-cache.json` (mode 600); it's
+reused across runs and re-validated by a cheap request, so a revoked cookie
+never breaks a punch.
 
 ## Go live safely
 
@@ -126,10 +142,10 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 
 ## Layout
 
-- `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
-  `locations` (EnableList), `notify` (Resend), `time`, `scheduler` (stateless
-  per-fire logic), `index` (cron handler), `calendar-cache` (storage-agnostic shift
-  cache used by the CLI; a future Worker could reuse it with a KV store).
+- `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `notify`, `time`,
+  `calendar-cache`, `session-cache` (validate-before-use cookie cache),
+  `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession` — the
+  reusable core), `scheduler` + `index` (the Worker, unchanged).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
   clock in/out), `config-cli.ts` (`npm run config set|list` — writes `.dev.vars`),

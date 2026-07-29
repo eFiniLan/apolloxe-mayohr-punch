@@ -31,6 +31,12 @@ Failure modes seen: requesting `response_type=id_token` returns a JSON `id_token
 but does NOT set `__ModuleSessionCookie`; reusing an already-consumed `code` → 403;
 calling calendar with `Authorization: <id_token>` → 500 (wrong mechanism).
 
+The CLI reuses the `__ModuleSessionCookie` across runs via `src/session-cache.ts`
+(gitignored `session-cache.json`, 9-day TTL). **Validate-before-use:** a cached
+cookie is trusted only after a cheap authenticated GET (locations/EnableList)
+succeeds; otherwise it re-logs-in. Toggle with `SESSION_CACHE` (default on). The
+Worker does not cache sessions (stateless).
+
 ## Calendar / shift schedule — CONFIRMED
 
 **GET** `https://apolloxe.mayohr.com/backend/platform-bff/api/calendars/employees/scheduling?year=<YYYY>&month=<M>`
