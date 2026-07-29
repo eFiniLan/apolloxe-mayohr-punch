@@ -7,7 +7,20 @@ export const FIELDS: Record<string, string[]> = {
   password: ["MAYO_PASSWORD"],
   location: ["PUNCHES_LOCATION_ID"],
   pos: ["PUNCH_LATITUDE", "PUNCH_LONGITUDE"],
+  calendar: ["CALENDAR_CHECK"],
+  session: ["SESSION_CACHE"],
 };
+
+/** Fields whose value is an on/off boolean (normalized before writing). */
+export const BOOLEAN_FIELDS = new Set(["calendar", "session"]);
+
+/** Normalize an on/off token to "true"/"false"; throws on anything else. */
+export function normalizeBool(v: string): string {
+  const t = v.trim().toLowerCase();
+  if (["on", "true", "1", "yes"].includes(t)) return "true";
+  if (["off", "false", "0", "no"].includes(t)) return "false";
+  throw new Error(`expected on/off (got "${v}")`);
+}
 
 /** Map a friendly field + values to env entries. Throws on unknown field or wrong arity. */
 export function buildEntries(field: string, values: string[]): Record<string, string> {

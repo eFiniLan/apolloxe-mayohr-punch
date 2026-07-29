@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { upsertEnvVar, upsertEnvVars, buildEntries } from "../scripts/dev-vars";
+import { upsertEnvVar, upsertEnvVars, buildEntries, normalizeBool, BOOLEAN_FIELDS } from "../scripts/dev-vars";
 
 describe("upsertEnvVar", () => {
   it("appends when the key is absent, preserving existing lines", () => {
@@ -65,5 +65,23 @@ describe("upsertEnvVars", () => {
     expect(upsertEnvVars("", { PUNCH_LATITUDE: "25.07", PUNCH_LONGITUDE: "121.57" })).toBe(
       "PUNCH_LATITUDE=25.07\nPUNCH_LONGITUDE=121.57\n",
     );
+  });
+});
+
+describe("boolean toggle fields", () => {
+  it("maps calendar/session to their env keys", () => {
+    expect(buildEntries("calendar", ["true"])).toEqual({ CALENDAR_CHECK: "true" });
+    expect(buildEntries("session", ["false"])).toEqual({ SESSION_CACHE: "false" });
+  });
+  it("BOOLEAN_FIELDS lists them", () => {
+    expect(BOOLEAN_FIELDS.has("calendar")).toBe(true);
+    expect(BOOLEAN_FIELDS.has("session")).toBe(true);
+    expect(BOOLEAN_FIELDS.has("location")).toBe(false);
+  });
+  it("normalizeBool accepts on/off/true/false, rejects garbage", () => {
+    expect(normalizeBool("on")).toBe("true");
+    expect(normalizeBool("OFF")).toBe("false");
+    expect(normalizeBool("true")).toBe("true");
+    expect(() => normalizeBool("maybe")).toThrow();
   });
 });

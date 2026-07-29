@@ -10,7 +10,7 @@
 // Writes to .dev.vars (or APOLLO_DEV_VARS) at mode 0600. No id/value validation.
 import { readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
 import * as readline from "node:readline";
-import { buildEntries, upsertEnvVars, FIELDS } from "./dev-vars";
+import { buildEntries, upsertEnvVars, FIELDS, BOOLEAN_FIELDS, normalizeBool } from "./dev-vars";
 import { readDevVars, DEV_VARS_PATH, localConfig } from "./_env";
 import { loadConfig } from "../src/config";
 import { acquireSession } from "../src/flow";
@@ -24,6 +24,8 @@ function usage(): never {
       "  npm run config set password            # prompted, hidden\n" +
       "  npm run config set location [<PunchesLocationId>]   # no id = list your locations\n" +
       "  npm run config set pos <lat> <lng>\n" +
+      "  npm run config set calendar on|off     # check today's shift before punching\n" +
+      "  npm run config set session on|off      # reuse the cached login cookie\n" +
       "  npm run config list",
   );
   process.exit(1);
@@ -95,6 +97,15 @@ async function cmdSet(field: string, values: string[]): Promise<void> {
     values = [pw];
   }
 
+  if (BOOLEAN_FIELDS.has(field) && values.length === 1) {
+    try {
+      values = [normalizeBool(values[0])];
+    } catch (e) {
+      console.error((e as Error).message);
+      usage();
+    }
+  }
+
   let entries: Record<string, string>;
   try {
     entries = buildEntries(field, values);
@@ -135,6 +146,8 @@ function cmdList(): void {
   console.log(`  location : ${cfg.punchesLocationId}`);
   console.log(`  pos      : ${cfg.latitude}, ${cfg.longitude}`);
   console.log(`  timezone : ${cfg.timezone}`);
+  console.log(`  calendar : ${cfg.calendarCheck ? "on" : "off"}`);
+  console.log(`  session  : ${cfg.sessionCache ? "on" : "off"}`);
   console.log(`\n  source   : ${DEV_VARS_PATH}`);
 }
 
