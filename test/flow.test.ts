@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { acquireSession, runPunch } from "../src/flow";
+import { acquireSession, runPunch, getDay } from "../src/flow";
 
 const SESSION = { cookie: "C" };
 const WORK = { isWorkday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30" };
@@ -83,5 +83,26 @@ describe("runPunch", () => {
     expect(cachedDayInfo).not.toHaveBeenCalled();
     expect(r.calendarSource).toBeUndefined();
     expect(r.step).toBe("punched");
+  });
+});
+
+describe("getDay", () => {
+  it("uses cachedDayInfo and returns {info, source} when a store is given", async () => {
+    const cachedDayInfo = vi.fn(async () => ({ info: WORK, source: "cache" }));
+    const getDayInfo = vi.fn();
+    const r = await getDay(SESSION as any, {} as any, {} as any, "2026-07-29", {
+      cachedDayInfo: cachedDayInfo as any, getDayInfo: getDayInfo as any,
+    });
+    expect(r).toEqual({ info: WORK, source: "cache" });
+    expect(getDayInfo).not.toHaveBeenCalled();
+  });
+  it("uses live getDayInfo and returns {info} (no source) when store is null", async () => {
+    const cachedDayInfo = vi.fn();
+    const getDayInfo = vi.fn(async () => WORK);
+    const r = await getDay(SESSION as any, {} as any, null, "2026-07-29", {
+      cachedDayInfo: cachedDayInfo as any, getDayInfo: getDayInfo as any,
+    });
+    expect(r).toEqual({ info: WORK });
+    expect(cachedDayInfo).not.toHaveBeenCalled();
   });
 });

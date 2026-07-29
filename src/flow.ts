@@ -67,6 +67,24 @@ export interface RunPunchDeps {
 }
 
 /**
+ * Today's DayInfo — cached when a store is given (auto-refresh on stale/missing),
+ * live otherwise. Shared by runPunch and the Worker scheduler.
+ */
+export async function getDay(
+  session: Session,
+  cfg: Config,
+  store: CacheStore | null,
+  dateKey: string,
+  deps: { cachedDayInfo?: typeof realCachedDayInfo; getDayInfo?: typeof realGetDayInfo } = {},
+): Promise<{ info: DayInfo; source?: "cache" | "fresh" }> {
+  if (store) {
+    const r = await (deps.cachedDayInfo ?? realCachedDayInfo)(session, cfg, dateKey, store);
+    return { info: r.info, source: r.source };
+  }
+  return { info: await (deps.getDayInfo ?? realGetDayInfo)(session, cfg, dateKey) };
+}
+
+/**
  * One punch: session → (optional workday check) → punch. Effective calendar
  * check = `cfg.calendarCheck && !opts.force`. With a store, the calendar read is
  * cached; without one (a stateless Worker) it is live.
@@ -85,15 +103,10 @@ export async function runPunch(
 
   if (cfg.calendarCheck && !opts.force) {
     const { dateKey } = nowParts(cfg.timezone, now());
-    let dayInfo: DayInfo;
-    let calendarSource: "cache" | "fresh" | undefined;
-    if (store) {
-      const r = await (deps.cachedDayInfo ?? realCachedDayInfo)(session, cfg, dateKey, store);
-      dayInfo = r.info;
-      calendarSource = r.source;
-    } else {
-      dayInfo = await (deps.getDayInfo ?? realGetDayInfo)(session, cfg, dateKey);
-    }
+    const { info: dayInfo, source: calendarSource } = await getDay(session, cfg, store, dateKey, {
+      cachedDayInfo: deps.cachedDayInfo,
+      getDayInfo: deps.getDayInfo,
+    });
     if (!dayInfo.isWorkday) {
       return { step: "skipped", reason: "not a workday", sessionSource, calendarSource, dayInfo };
     }
