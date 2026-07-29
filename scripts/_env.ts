@@ -1,4 +1,4 @@
-// Shared bootstrap for the local CLI helpers (punch-now, list-locations).
+// Shared bootstrap for the local CLI helpers (punch-now, config-cli).
 // Builds the same Config the Worker uses, so the scripts can never drift from
 // the deployed behaviour.
 //

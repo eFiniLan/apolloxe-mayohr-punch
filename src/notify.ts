@@ -1,6 +1,6 @@
 import type { Config } from "./config";
 
-export interface Notification { level: "success" | "failure"; subject: string; body: string }
+interface Notification { level: "success" | "failure"; subject: string; body: string }
 
 export async function notify(
   cfg: Config,

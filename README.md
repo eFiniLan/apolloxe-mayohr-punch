@@ -81,9 +81,8 @@ npm install
    `npm run punch` reads your shift from a local `calendar-cache.json` instead of
    hitting the calendar API every time. It auto-refreshes when the file is missing,
    older than 7 days, or doesn't cover today (caching the current + next month).
-   Run `npm run calendar:sync` to pre-warm or force a refresh WITHOUT punching —
-   handy right after a schedule change. The file is gitignored (your personal
-   schedule) and human-readable — open it to verify your upcoming shifts.
+   The file is gitignored (your personal schedule) and human-readable — open it to
+   verify your upcoming shifts.
 
 ### Caching & toggles
 
@@ -159,9 +158,8 @@ still prevents double punches either way.
   (KV `CacheStore` for the Worker), `scheduler` + `index` (the Worker).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
-  clock in/out), `config-cli.ts` (`npm run config set|list` — writes `.dev.vars`),
-  `list-locations.ts` (`npm run locations`), `sync-calendar.ts`
-  (`npm run calendar:sync`), `dev-vars.ts` (pure `.dev.vars` editing) +
-  `cache-fs.ts` (file-backed cache store), `_env.ts` (shared `.dev.vars` + config
-  bootstrap; `APOLLO_DEV_VARS` overrides the file path).
+  clock in/out), `config-cli.ts` (`npm run config` / `config set` — writes
+  `.dev.vars`, lists locations via `set location`), `dev-vars.ts` (pure `.dev.vars`
+  editing) + `cache-fs.ts` (file-backed cache store), `_env.ts` (shared `.dev.vars`
+  + config bootstrap; `APOLLO_DEV_VARS` overrides the file path).
 - `docs/` — the design spec, plan, and confirmed API facts.

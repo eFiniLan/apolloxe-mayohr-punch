@@ -21,13 +21,13 @@ npx vitest run -t "cooldown"            # a single test by name
 npm run typecheck             # tsc --noEmit
 npm run dev                   # wrangler dev (reads .dev.vars)
 npm run deploy                # wrangler deploy
-npm run locations             # CLI: list punch locations → pick PUNCHES_LOCATION_ID
+npm run config                # show effective config; `config set location` (no id) lists offices
 npm run punch in|out          # CLI: a REAL end-to-end punch (prefix DRY_RUN=true to dry-run)
 ```
 
-`npm run punch` and `npm run locations` hit the **live MayoHR API** with real
-credentials. Default to `DRY_RUN=true npm run punch ...` unless a real punch is
-intended.
+`npm run punch` (and `config set location` with no id) hit the **live MayoHR API**
+with real credentials. Default to `DRY_RUN=true npm run punch ...` unless a real
+punch is intended.
 
 ## Credentials & config
 

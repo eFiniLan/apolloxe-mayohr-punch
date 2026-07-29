@@ -8,7 +8,7 @@ import type { CacheStore } from "./cache-store";
 export const SESSION_KEY = "session-cache.json";
 const TTL_MS = 9 * 24 * 60 * 60 * 1000;
 
-export interface SessionFile {
+interface SessionFile {
   cookie: string;
   savedAt: string; // ISO-8601, read for staleness
 }

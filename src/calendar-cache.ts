@@ -13,7 +13,7 @@ export type { CacheStore }; // re-export for existing importers (cache-fs, tests
 export const CACHE_KEY = "calendar-cache.json";
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface CacheDay {
+interface CacheDay {
   workday: boolean;
   onLeave: boolean;
   shiftStart: string | null;
@@ -151,17 +151,4 @@ export async function cachedDayInfo(
   const day = file.days[dateKey];
   if (!day) throw new Error(`No calendar entry for ${dateKey}`);
   return { info: cacheDayToInfo(day), source: "fresh" };
-}
-
-/** Force a refresh regardless of freshness. Used by `npm run calendar:sync`. */
-export async function syncCalendar(
-  session: Session,
-  cfg: Config,
-  dateKey: string,
-  store: CacheStore,
-  opts: CacheOpts = {},
-): Promise<CacheFile> {
-  const file = await buildCache(session, cfg, dateKey, opts);
-  await store.write(CACHE_KEY, serialize(file));
-  return file;
 }

@@ -14,7 +14,7 @@ import { getLocations as realGetLocations } from "./locations";
 import { punch as realPunch, type PunchOutcome } from "./punch";
 import { nowParts } from "./time";
 
-export interface AcquireDeps {
+interface AcquireDeps {
   login?: (cfg: Config) => Promise<Session>;
   getSession?: typeof realGetSession;
   getLocations?: typeof realGetLocations;
@@ -58,7 +58,7 @@ export interface RunPunchResult {
   dayInfo?: DayInfo; // present when the calendar was checked
 }
 
-export interface RunPunchDeps {
+interface RunPunchDeps {
   acquireSession?: typeof acquireSession;
   cachedDayInfo?: typeof realCachedDayInfo;
   getDayInfo?: typeof realGetDayInfo;

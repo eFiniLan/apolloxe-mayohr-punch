@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   dayLabel, infoToCacheDay, cacheDayToInfo, isFresh,
-  targetMonths, monthLabel, buildCache, cachedDayInfo, syncCalendar, CACHE_KEY,
+  targetMonths, monthLabel, buildCache, cachedDayInfo, CACHE_KEY,
   type CacheFile, type CacheOpts, type CacheStore,
 } from "../src/calendar-cache";
 import type { DayInfo } from "../src/calendar";
@@ -161,15 +161,5 @@ describe("cachedDayInfo", () => {
     const store = memStore(null);
     const r = cachedDayInfo(session, cfg, "2026-07-27", store, { ...OPTS, getMonthInfo: (async () => ({})) as any });
     await expect(r).rejects.toThrow(/2026-07-27/);
-  });
-});
-
-describe("syncCalendar", () => {
-  it("always builds and writes, returning the file", async () => {
-    const store = memStore(freshFileJson());
-    const file = await syncCalendar(session, cfg, "2026-07-27", store, OPTS);
-    expect(store.written).toHaveLength(1); // ignores the fresh cache; forces a refresh
-    expect(file.months).toEqual(["2026-07", "2026-08"]);
-    expect(Object.keys(file.days)).toContain("2026-07-27");
   });
 });
