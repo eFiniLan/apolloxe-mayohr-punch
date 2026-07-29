@@ -48,3 +48,17 @@ describe("loadConfig", () => {
     expect(c.earlyIn.max).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("caching toggles", () => {
+  const base = { MAYO_USERNAME: "u", MAYO_PASSWORD: "p", RESEND_API_KEY: "r", NOTIFY_TO: "a@b", NOTIFY_FROM: "c@d" };
+  it("calendarCheck and sessionCache default to true", () => {
+    const cfg = loadConfig(base as never);
+    expect(cfg.calendarCheck).toBe(true);
+    expect(cfg.sessionCache).toBe(true);
+  });
+  it("respects CALENDAR_CHECK/SESSION_CACHE = false", () => {
+    const cfg = loadConfig({ ...base, CALENDAR_CHECK: "false", SESSION_CACHE: "false" } as never);
+    expect(cfg.calendarCheck).toBe(false);
+    expect(cfg.sessionCache).toBe(false);
+  });
+});

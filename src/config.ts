@@ -29,6 +29,8 @@ export interface Config {
   notifyOnSuccess: boolean;
   notifyOnFailure: boolean;
   dryRun: boolean;
+  calendarCheck: boolean; // CLI: check today's shift before punching
+  sessionCache: boolean; // CLI: reuse the cached session cookie
 }
 
 function req(env: Env, k: string): string {
@@ -81,5 +83,7 @@ export function loadConfig(env: Env): Config {
     notifyOnSuccess: bool(env, "NOTIFY_ON_SUCCESS", true),
     notifyOnFailure: bool(env, "NOTIFY_ON_FAILURE", true),
     dryRun: bool(env, "DRY_RUN", false),
+    calendarCheck: bool(env, "CALENDAR_CHECK", true),
+    sessionCache: bool(env, "SESSION_CACHE", true),
   };
 }
