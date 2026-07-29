@@ -13,7 +13,8 @@ import * as readline from "node:readline";
 import { buildEntries, upsertEnvVars, FIELDS } from "./dev-vars";
 import { readDevVars, DEV_VARS_PATH, localConfig } from "./_env";
 import { loadConfig } from "../src/config";
-import { login } from "../src/auth";
+import { acquireSession } from "../src/flow";
+import { fileStore } from "./cache-fs";
 import { getLocations, formatLocations } from "../src/locations";
 
 function usage(): never {
@@ -75,7 +76,7 @@ async function cmdSet(field: string, values: string[]): Promise<void> {
     ensureCreds(env);
     const { cfg } = localConfig();
     console.log(`Logging in as ${cfg.userName}…`);
-    const session = await login(cfg);
+    const { session } = await acquireSession(cfg, fileStore);
     console.log("\nYour Apollo punch locations:\n");
     console.log(formatLocations(await getLocations(session, cfg)));
     console.log("\nSet one with:  npm run config set location <PunchesLocationId>");
