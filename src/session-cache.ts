@@ -62,7 +62,8 @@ export async function getSession(
   let raw: string | null = null;
   try {
     raw = await store.read(SESSION_KEY);
-  } catch {
+  } catch (e) {
+    console.error(`session-cache: read failed (${(e as Error).message}); logging in fresh`);
     raw = null;
   }
   const cookie = readCachedCookie(raw, now(), ttlMs);

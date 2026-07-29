@@ -28,6 +28,14 @@ describe("acquireSession", () => {
     expect(getLocations).toHaveBeenCalledWith(SESSION, cfg);
     expect(r.source).toBe("cache");
   });
+  it("treats an empty locations result as an invalid session (dead cookie → re-login)", async () => {
+    const cfg: any = { sessionCache: true };
+    const getSession = vi.fn(async (_c: any, _s: any, o: any) => ({ session: SESSION, source: (await o.validate(SESSION)) ? "cache" : "fresh" }));
+    const getLocations = vi.fn(async () => []);
+    const r = await acquireSession(cfg, {} as any, { getSession: getSession as any, getLocations: getLocations as any });
+    expect(getLocations).toHaveBeenCalledWith(SESSION, cfg);
+    expect(r.source).toBe("fresh");
+  });
 });
 
 describe("runPunch", () => {

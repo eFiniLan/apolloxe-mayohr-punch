@@ -1,6 +1,6 @@
-// The file-backed CacheStore for the CLI. This is the ONLY place in the feature
-// that imports node:fs — no test and no src/ file imports it, so src/ stays
-// Workers-safe. A future Worker would provide a KV-backed CacheStore instead.
+// The file-backed CacheStore for the CLI. No src/ file or test imports node:fs,
+// so src/ stays Workers-safe. A future Worker would provide a KV-backed
+// CacheStore instead.
 import { readFile, writeFile, chmod } from "node:fs/promises";
 import type { CacheStore } from "../src/calendar-cache";
 

@@ -37,7 +37,10 @@ export async function acquireSession(
   const getLocations = deps.getLocations ?? realGetLocations;
   return getSession(cfg, store, {
     login,
-    validate: (s) => getLocations(s, cfg).then(() => true).catch(() => false),
+    // A live session lists the account's punch locations; an empty/no-Data
+    // response (a dead cookie can return 200 with no Data) means "not valid" →
+    // re-login. getLocations throws on non-2xx; both fall through to a fresh login.
+    validate: (s) => getLocations(s, cfg).then((locs) => locs.length > 0).catch(() => false),
   });
 }
 
