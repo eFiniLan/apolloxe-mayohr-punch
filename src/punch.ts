@@ -7,6 +7,27 @@ export type PunchOutcome =
   | { outcome: "cooldown"; detail: string } // server: punched <~10 min ago → a punch just happened
   | { outcome: "failure"; detail: string };
 
+/**
+ * Shared human summary + pass/fail of a punch outcome, used by both the CLI
+ * (exit code + message) and the Worker (log + throw). `ok` means "nothing to
+ * worry about" — a punch happened or already had; only `failure` is not ok.
+ */
+export function summarize(
+  direction: "in" | "out",
+  outcome: PunchOutcome,
+): { ok: boolean; reason: string } {
+  switch (outcome.outcome) {
+    case "success":
+      return { ok: true, reason: `clock-${direction} recorded ${outcome.punchDate} @ ${outcome.locationName}` };
+    case "already_done":
+      return { ok: true, reason: `already clocked ${direction} (${outcome.detail})` };
+    case "cooldown":
+      return { ok: true, reason: `cooldown (${outcome.detail})` };
+    case "failure":
+      return { ok: false, reason: `clock-${direction} FAILED: ${outcome.detail}` };
+  }
+}
+
 const PUNCH_URL = "https://apolloxe.mayohr.com/backend/pt/api/checkIn/punch/locate";
 const REFERER_URL = "https://apolloxe.mayohr.com/ta?id=webpunch";
 

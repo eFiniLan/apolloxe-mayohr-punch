@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { punch, jitterCoord } from "../src/punch";
+import { punch, jitterCoord, summarize } from "../src/punch";
 
 const PUNCH_URL = "https://apolloxe.mayohr.com/backend/pt/api/checkIn/punch/locate";
 const OFFICE_LAT = 25.0781415;
@@ -177,3 +177,17 @@ describe("punch", () => {
     expect(f).not.toHaveBeenCalled();
   });
 });
+
+describe("summarize", () => {
+  it("success/already_done/cooldown are ok, with a reason", () => {
+    expect(summarize("in", { outcome: "success", attendanceHistoryId: "A", punchDate: "09:20", locationName: "HQ" }))
+      .toEqual({ ok: true, reason: "clock-in recorded 09:20 @ HQ" });
+    expect(summarize("in", { outcome: "already_done", detail: "exists" }).ok).toBe(true);
+    expect(summarize("out", { outcome: "cooldown", detail: "wait 8 min" }).ok).toBe(true);
+  });
+  it("failure is not ok and carries the detail", () => {
+    const s = summarize("in", { outcome: "failure", detail: "SH_NonAuthorisedIP" });
+    expect(s).toEqual({ ok: false, reason: "clock-in FAILED: SH_NonAuthorisedIP" });
+  });
+});
+
