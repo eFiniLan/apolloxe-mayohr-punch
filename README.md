@@ -25,7 +25,7 @@ login → read today's calendar → workday? ──no─→ skip (weekend/holida
   `cooldown` (punched <~10 min ago), both of which the Worker treats as "done" and
   stays quiet. So the cron can fire every 5 min safely.
 - **Reaction buffer:** clock-in is attempted `≥ REACTION_BUFFER_MIN` before your
-  shift, so if it genuinely fails you get the failure email with time to punch manually.
+  shift, so if it genuinely fails you find out (a failed run / exit code) with time to punch manually.
 - Shift times come from Mayo's calendar, so flex/variable schedules just work.
 
 > **Note.** Your company IP-restricts the *web* punch (office/VPN only). This uses
@@ -66,9 +66,6 @@ npm install
    ```bash
    npx wrangler secret put MAYO_USERNAME     # your login email
    npx wrangler secret put MAYO_PASSWORD
-   npx wrangler secret put RESEND_API_KEY    # from resend.com (free tier is plenty)
-   npx wrangler secret put NOTIFY_TO         # where to email you
-   npx wrangler secret put NOTIFY_FROM       # a verified Resend sender
    ```
 
 4. **Verify locally:**
@@ -98,6 +95,13 @@ independent toggles, both **on** by default, set via `config` (or env
 The session cookie lives in gitignored `session-cache.json` (mode 600); it's
 reused across runs and re-validated by a cheap request, so a revoked cookie
 never breaks a punch.
+
+**Signals.** `npm run punch` exits `0` (ok: success/already_done/cooldown/skipped),
+`1` (punch rejected — reason printed), `2` (usage), or `3` (couldn't run —
+login/calendar/network). Add `-- --json` for a machine-readable summary line. The
+Worker doesn't email; a failed punch **throws**, marking the cron invocation failed
+in the Cloudflare dashboard / `wrangler tail` — wire a Cloudflare Notification if
+you want to be alerted.
 
 ## Go live safely
 
@@ -147,7 +151,6 @@ still prevents double punches either way.
 | `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
 | `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before shift (failure-email buffer) |
 | `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
-| `NOTIFY_ON_SUCCESS` / `NOTIFY_ON_FAILURE` | `true` / `true` | email toggles |
 | `DRY_RUN` | `true` | plan + email but never punch |
 
 ## Layout

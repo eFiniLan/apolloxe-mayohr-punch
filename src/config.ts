@@ -14,12 +14,12 @@ export interface Config {
   gpsJitterMeters: number;
   punchesLocationId: string; // office punch location (from locations/EnableList)
   // Jitter magnitudes (positive, min clamped ≥1). The scheduler computes:
-  //   clock-IN  = shiftStart − (reactionBufferMin + random(earlyIn))  → always EARLY (and before escalateInAt)
+  //   clock-IN  = shiftStart − (reactionBufferMin + random(earlyIn))  → always EARLY
   //   clock-OUT = shiftEnd   + random(lateOut)                        → always LATE
   earlyIn: { min: number; max: number };
   lateOut: { min: number; max: number };
   // Clock-in is attempted at least this many minutes before the shift, so if it
-  // genuinely fails the failure email reaches you with time to punch manually.
+  // genuinely fails you find out (a failed run / exit code) with time to punch manually.
   reactionBufferMin: number;
   respectLeave: boolean;
   dryRun: boolean;

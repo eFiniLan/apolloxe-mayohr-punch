@@ -64,8 +64,9 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 - **`punch.ts`** — POST to the GPS `/locate` endpoint. Response is
   **self-verifying** (`Meta.HttpStatusCode==="200"` + `Data.AttendanceHistoryId`),
   so there is no read-back step. Maps server errors to outcomes.
-- **`scheduler.ts`, `time.ts`, `config.ts`, `notify.ts`** — orchestration, pure
-  time math, env→Config, Resend email.
+- **`scheduler.ts`, `time.ts`, `config.ts`** — orchestration, pure time math,
+  env→Config. Success/failure is signaled by `punch.ts summarize()` — the CLI via
+  exit codes, the Worker by throwing (no email).
 - **`index.ts`** — the cron entrypoint; `await`s `runScheduler` (not
   `ctx.waitUntil`) so a failure marks the invocation failed instead of green.
 
@@ -92,7 +93,7 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 
 Every impure boundary is an injectable last parameter with a real default:
 `fetch` (`fetchImpl = fetch`), randomness (`rand = Math.random`), and the
-scheduler's whole `Deps` (acquireSession/getDay/punch/notify/store/now/rand). Tests inject
+scheduler's whole `Deps` (acquireSession/getDay/punch/store/now/rand). Tests inject
 fakes; production passes nothing. Preserve this when adding code — don't call
 `Math.random`/`fetch`/`new Date()` directly in testable logic.
 

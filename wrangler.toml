@@ -24,8 +24,8 @@ compatibility_date = "2024-12-30"
 crons = ["*/5 0-1 * * *", "*/5 10-11 * * *"]
 
 # Non-sensitive defaults. Code has sane defaults for everything else; override
-# here as needed. Secrets (MAYO_USERNAME, MAYO_PASSWORD, RESEND_API_KEY,
-# NOTIFY_TO, NOTIFY_FROM) go via `wrangler secret put`, never here.
+# here as needed. Secrets (MAYO_USERNAME, MAYO_PASSWORD) go via
+# `wrangler secret put`, never here.
 [vars]
 TIMEZONE = "Asia/Taipei"
 DRY_RUN = "true"
