@@ -1,5 +1,7 @@
 # apollo-auto-punch
 
+> **English** ・ [繁體中文](README.zh-TW.md)
+
 A Cloudflare Worker that automatically clocks you in/out of Apollo XE (MayoHR),
 driven by your own shift calendar. It logs in, reads Mayo's schedule for the day,
 and punches via the GPS `/locate` endpoint (which validates by location, not IP —
