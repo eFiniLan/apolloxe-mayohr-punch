@@ -92,7 +92,7 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 
 Every impure boundary is an injectable last parameter with a real default:
 `fetch` (`fetchImpl = fetch`), randomness (`rand = Math.random`), and the
-scheduler's whole `Deps` (login/getDayInfo/punch/notify/now/rand). Tests inject
+scheduler's whole `Deps` (acquireSession/getDay/punch/notify/store/now/rand). Tests inject
 fakes; production passes nothing. Preserve this when adding code — don't call
 `Math.random`/`fetch`/`new Date()` directly in testable logic.
 
