@@ -6,6 +6,9 @@ import type { DayInfo } from "./calendar";
 import { getMonthInfo } from "./calendar";
 import type { Config } from "./config";
 import type { Session } from "./auth";
+import type { CacheStore } from "./cache-store";
+
+export type { CacheStore }; // re-export for existing importers (cache-fs, tests)
 
 export const CACHE_KEY = "calendar-cache.json";
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -23,12 +26,6 @@ export interface CacheFile {
   timezone: string; // human-only
   months: string[]; // human-only, e.g. ["2026-07","2026-08"]
   days: Record<string, CacheDay>; // keyed "YYYY-MM-DD"
-}
-
-/** The storage boundary. fs-backed for the CLI; KV-backed for a future Worker. */
-export interface CacheStore {
-  read: (key: string) => Promise<string | null>; // null when absent
-  write: (key: string, contents: string) => Promise<void>;
 }
 
 /** Injectable non-storage boundaries (clock, month fetch). Both default inline. */
