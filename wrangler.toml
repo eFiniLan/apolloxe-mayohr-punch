@@ -40,5 +40,5 @@ PUNCHES_LOCATION_ID = "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1" # 台北辦公室 (
 # PUNCH_EARLY_IN_MAX = "15"
 # PUNCH_LATE_OUT_MIN = "1"        # clock out 1–15 min after scheduled end
 # PUNCH_LATE_OUT_MAX = "15"
-# REACTION_BUFFER_MIN = "10"      # clock in at least this many min early (so a failure email has buffer)
+# REACTION_BUFFER_MIN = "10"      # clock in at least this many min early (so a failed run is visible with time to punch manually)
 # RESPECT_LEAVE = "false"         # true = skip full-day-leave days

@@ -2,13 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { runScheduler, type Deps } from "../src/scheduler";
 import type { PunchOutcome } from "../src/punch";
 
-// Config the loader requires (notify secrets unused by most tests).
+// Config the loader requires.
 const baseEnv = {
   MAYO_USERNAME: "e@x.com",
   MAYO_PASSWORD: "p",
-  RESEND_API_KEY: "re",
-  NOTIFY_TO: "to@x.com",
-  NOTIFY_FROM: "fr@x.com",
 } as any;
 
 // A Date whose Asia/Taipei wall-clock is hh:mm on 2026-07-24 (TW = UTC+8).

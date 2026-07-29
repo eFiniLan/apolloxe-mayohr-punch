@@ -132,9 +132,6 @@ function cmdList(): void {
   // loadConfig requires creds; stub them just to read location/pos/timezone
   // defaults. Real creds status is reported separately from `env`.
   const cfg = loadConfig({
-    RESEND_API_KEY: "x",
-    NOTIFY_TO: "x@x",
-    NOTIFY_FROM: "x@x",
     MAYO_USERNAME: "x",
     MAYO_PASSWORD: "x",
     ...env,

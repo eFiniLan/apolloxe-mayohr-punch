@@ -3,7 +3,8 @@
 A Cloudflare Worker that automatically clocks you in/out of Apollo XE (MayoHR),
 driven by your own shift calendar. It logs in, reads Mayo's schedule for the day,
 and punches via the GPS `/locate` endpoint (which validates by location, not IP —
-so it works from Cloudflare's network). Emails you on success and failure.
+so it works from Cloudflare's network). The CLI signals via exit codes; the
+Worker marks a failed cron run in Cloudflare.
 
 ## How it works (per cron fire)
 
@@ -106,13 +107,13 @@ you want to be alerted.
 ## Go live safely
 
 `wrangler.toml` ships with `DRY_RUN = "true"` — the Worker runs the whole pipeline
-(login, calendar, planning, email) but **never actually punches**.
+(login, calendar, planning) but **never actually punches**.
 
 ```bash
 npx wrangler deploy
 npx wrangler tail          # watch a real morning/evening window
 ```
-Confirm it plans correctly and sends a DRY_RUN success email. Then flip it live:
+Confirm it plans correctly (a DRY_RUN run logs the punch in `wrangler tail`). Then flip it live:
 
 ```toml
 # wrangler.toml
@@ -121,7 +122,7 @@ DRY_RUN = "false"
 ```bash
 npx wrangler deploy
 ```
-Watch the first real workday via `wrangler tail`, confirm the success email quotes
+Watch the first real workday via `wrangler tail`, confirm `wrangler tail` shows
 Mayo's recorded time, and check Apollo shows exactly one in + one out.
 
 > Being stateless, each cron fire does a fresh login + calendar read (≈ up to ~48
@@ -149,13 +150,13 @@ still prevents double punches either way.
 | `GPS_JITTER_METERS` | `12` | random shift radius per punch |
 | `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early (on top of buffer) |
 | `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
-| `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before shift (failure-email buffer) |
+| `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before shift (so a failed run is visible with time to punch manually) |
 | `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
-| `DRY_RUN` | `true` | plan + email but never punch |
+| `DRY_RUN` | `true` | run the pipeline but never punch |
 
 ## Layout
 
-- `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `notify`, `time`,
+- `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `time`,
   `calendar-cache`, `session-cache` (validate-before-use cookie cache),
   `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession`/`getDay` — the reusable core), `kv-store`
   (KV `CacheStore` for the Worker), `scheduler` + `index` (the Worker).

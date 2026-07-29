@@ -106,7 +106,7 @@ There are two punch endpoints, both cookie-auth (`__ModuleSessionCookie`):
   `Error.Status = "PT_PlsDonotContinuousCheckIn"` (Title counts down the remaining
   minutes). Mapped to its own `cooldown` outcome. The **Worker** treats `cooldown`
   (and `already_done`) as a quiet no-op — "a punch already happened, nothing to do" —
-  so firing every 5 min never re-punches or emails. The **manual `punch-now`** tool
+  so firing every 5 min never re-punches or re-alerts. The **manual `punch-now`** tool
   shows it as a failure (honest feedback to a human deliberately punching twice).
 - Geofence radius not directly read, but the office radius (`radiusofEffectiveRange`)
   far exceeds the ±12 m GPS jitter, so jitter stays in-bounds. Always send the
@@ -132,12 +132,14 @@ location is never identical:
     `[targetIn, shiftStart)`, so the clock-in can never slip past the shift even
     if `reactionBufferMin`/`earlyIn` are configured very small.
 - **Reaction buffer:** clock-in is time-critical, so it is attempted at least
-  `reactionBufferMin` (default 10) before the shift. If it genuinely fails, the
-  failure email arrives with time to punch manually, and the next cron fire retries.
+  `reactionBufferMin` (default 10) before the shift. If it genuinely fails,
+  you find out (a failed run / exit code) with time to punch manually, and the
+  next cron fire retries.
 - Clock-out is not time-critical, so it only needs "always later" — no buffer.
-- **No escalation tier.** An earlier design had a separate URGENT email; the thin
-  stateless refactor dropped it, since every failure already emails immediately
-  and retries, and the early attempt supplies the buffer.
+- **No escalation tier.** An earlier design had a separate URGENT escalation; the
+  thin stateless refactor dropped it, since every failure already surfaces
+  immediately (throw / exit code) and retries, and the early attempt supplies
+  the buffer.
 - Direction is derived from the time of day (`hhmm < "12:00"` ⇒ in, else out)
   rather than from stored state — this is what makes the Worker stateless.
 
@@ -160,13 +162,13 @@ IS the confirmation. **No separate read-back endpoint is needed** — `verify` i
 just interpreting the punch response.
 
 ### Punch result handling (stateless — no KV)
-- `Meta.HttpStatusCode === "200"` with `AttendanceHistoryId` → `success` (email quotes
-  `Data.punchDate` + `LocationName`).
+- `Meta.HttpStatusCode === "200"` with `AttendanceHistoryId` → `success` (the
+  CLI/log reports `Data.punchDate` + `LocationName`).
 - `Error.Status` matching `/^PT_TodayHas.*Records$/` → `already_done` → Worker stays quiet.
 - `Error.Status === "PT_PlsDonotContinuousCheckIn"` → `cooldown` → Worker stays quiet.
 - `Error.Status === "SH_NonAuthorisedIP"` → only happens on `/web`; must never occur
   on `/locate`. Falls through to `failure`.
-- Any other `Error` / non-200 → `failure` (alert email; retries next fire).
+- Any other `Error` / non-200 → `failure` (throw / exit 1; retries next fire).
 
 ### GPS jitter (confirmed accepted)
 Uniform point within `gpsJitterMeters` of the office, rounded to 7 decimals:

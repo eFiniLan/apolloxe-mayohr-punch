@@ -35,7 +35,7 @@ punch is intended.
   `MAYO_USERNAME` / `MAYO_PASSWORD`. This is the single local credential store —
   do not reintroduce a second one (there used to be a `probe/secrets.json`; it's
   gone on purpose).
-- **Deployed**: `wrangler secret put` for `MAYO_*`, `RESEND_API_KEY`, `NOTIFY_*`;
+- **Deployed**: `wrangler secret put` for `MAYO_*`;
   non-secret vars live in `wrangler.toml` `[vars]`.
 - Config precedence for CLI: real env vars > `.dev.vars` > code defaults
   (`scripts/_env.ts`). The Worker reads only `env` (`src/config.ts loadConfig`).
@@ -50,7 +50,7 @@ deployed behaviour (an earlier duplicated login is what once hid an
 Per-cron-fire pipeline (`src/scheduler.ts runScheduler`, the heart of the system):
 
 ```
-login → read today's calendar → workday? → (leave?) → time yet? → punch → email
+login → read today's calendar → workday? → (leave?) → time yet? → punch → exit code / throw
 ```
 
 - **`auth.ts`** — the 3-step cookie-session login (scrape CSRF `__RequestVerificationToken`
