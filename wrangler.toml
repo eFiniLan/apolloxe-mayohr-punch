@@ -4,6 +4,14 @@ compatibility_date = "2024-12-30"
 
 # Stateless — no KV. Idempotency comes from the server (already_done / cooldown).
 
+# Optional: cache the login cookie + calendar across fires (≈1 login / 9 days
+# instead of ~48/day). Without this the Worker is stateless (server idempotency).
+#   npx wrangler kv namespace create APOLLO_KV
+# then uncomment and paste the printed id:
+# [[kv_namespaces]]
+# binding = "APOLLO_KV"
+# id = "<id>"
+
 # Cron is UTC; Taiwan = UTC+8. Fires EVERY day (not just Mon–Fri) so makeup
 # workdays (補班) on weekends still run — the calendar's isWorkday decides whether
 # to actually punch, so weekends/holidays self-skip after one cheap check. Each
