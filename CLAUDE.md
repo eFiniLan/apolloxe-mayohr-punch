@@ -71,11 +71,15 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 
 ### Two design decisions that everything hangs on
 
-1. **Stateless — no KV.** MayoHR itself is the source of truth. A duplicate punch
-   returns `already_done`; a punch <~10 min after another returns `cooldown`.
-   The scheduler treats both as "a punch already happened → stay quiet", so the
-   cron can fire every 5 min safely and re-login each time. Any feature that
-   reaches for stored state should first ask whether server idempotency covers it.
+1. **Stateless by default, optional KV.** MayoHR itself is the source of truth. A
+   duplicate punch returns `already_done`; a punch <~10 min after another returns
+   `cooldown`. The scheduler treats both as "a punch already happened → stay quiet",
+   so the cron can fire every 5 min safely and re-login each time. Binding a KV
+   namespace (`APOLLO_KV`) enables the Worker to cache the session cookie (9-day
+   TTL, validate-before-use) and calendar via the shared `runPunch`/`getDay` core;
+   unbound, it stays stateless. Either way, server idempotency is the Worker's
+   safety net. Any feature reaching for stored state should first ask whether
+   server idempotency covers it.
 
 2. **Direction and timing are derived, not stored.** `hhmm < "12:00"` ⇒ clock-in,
    else clock-out. Clock-in is guaranteed **early** (target = `shiftStart −

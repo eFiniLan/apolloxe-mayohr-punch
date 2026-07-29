@@ -125,6 +125,17 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 > logins/day across both windows). That's the trade for having no KV. If you want to
 > cut that, narrow the `crons` windows in `wrangler.toml` to just around your shift.
 
+**Optional — cache across fires with KV.** Bind a KV namespace and the Worker
+reuses the login cookie (≈1 login / 9 days instead of ~48/day) and the calendar,
+via the same `runPunch` building blocks the CLI uses:
+```bash
+npx wrangler kv namespace create APOLLO_KV
+# paste the printed id into the [[kv_namespaces]] block in wrangler.toml (uncomment it)
+npx wrangler deploy
+```
+Unbound, the Worker stays stateless (today's behavior) — server-side idempotency
+still prevents double punches either way.
+
 ## Configuration (all optional except secrets)
 
 | Var | Default | Meaning |
@@ -144,8 +155,8 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 
 - `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `notify`, `time`,
   `calendar-cache`, `session-cache` (validate-before-use cookie cache),
-  `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession` — the
-  reusable core), `scheduler` + `index` (the Worker, unchanged).
+  `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession`/`getDay` — the reusable core), `kv-store`
+  (KV `CacheStore` for the Worker), `scheduler` + `index` (the Worker).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
   clock in/out), `config-cli.ts` (`npm run config set|list` — writes `.dev.vars`),

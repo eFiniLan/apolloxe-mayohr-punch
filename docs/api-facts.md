@@ -141,6 +141,12 @@ location is never identical:
 - Direction is derived from the time of day (`hhmm < "12:00"` ⇒ in, else out)
   rather than from stored state — this is what makes the Worker stateless.
 
+The Worker shares the CLI's core: `src/scheduler.ts` calls `flow.acquireSession`
++ `flow.getDay` + `punch` (not `runPunch` whole — its timing gate sits between the
+calendar read and the punch). It runs stateless unless a KV namespace (`APOLLO_KV`)
+is bound, in which case it caches the session cookie (validate-before-use, 9-day
+TTL) and calendar in KV via `src/kv-store.ts`.
+
 ## Punch response — CONFIRMED (a real clock-out succeeded)
 
 A real `/locate` clock-out from a non-office IP returned:
