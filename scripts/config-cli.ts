@@ -153,7 +153,9 @@ function cmdList(): void {
 
 const [cmd, field, ...values] = process.argv.slice(2);
 if (cmd === "set") await cmdSet(field, values);
-else if (!cmd || cmd === "list") {
-  cmdList(); // bare `config` shows the effective config…
-  console.log("\n" + USAGE); // …and the command help below it
-} else usage();
+else {
+  // Anything other than `set` (no args, or an unrecognized word) shows the
+  // effective config plus the command help.
+  cmdList();
+  console.log("\n" + USAGE);
+}
