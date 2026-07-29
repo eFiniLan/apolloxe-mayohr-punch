@@ -4,3 +4,4 @@ node_modules/
 dist/
 *.log
 calendar-cache.json
+session-cache.json
