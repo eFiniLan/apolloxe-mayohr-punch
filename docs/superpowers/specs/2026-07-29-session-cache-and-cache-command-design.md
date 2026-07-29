@@ -1,62 +1,63 @@
-# Session cookie cache + unified `cache` command — design
+# Session cookie cache + caching config toggles — design
 
 **Date:** 2026-07-29
 **Status:** approved (decisions settled), ready for spec review → planning
 
 ## Problem
 
-Every CLI command (`punch`, `locations`, `calendar:sync`, `config set location`)
-does a fresh 3-step MayoHR login on each run — scrape the CSRF form, POST the
-password, follow `checkticket` to get `__ModuleSessionCookie`. That cookie lives
-~10 days, so re-logging in every run is wasteful and repeats the most bot-like
-part of the flow (the password POST) far more than necessary.
+Every CLI command does a fresh 3-step MayoHR login on each run, even though the
+`__ModuleSessionCookie` it obtains lives ~10 days. And the punch always reads the
+calendar (workday/shift check) with no way to turn that off. We want both
+behaviors cached and **independently toggleable via config** — no elaborate cache
+management command.
 
-Goal: cache the session cookie locally and reuse it across runs, so the real
-login happens ~once per 9 days instead of every command. Also fold the now
-too-narrow `calendar:sync` into a unified `cache` command, since there are two
-caches to manage.
+## Approach: two independent toggles
 
-## Scope
+The calendar cache and the session cache are **two different things, managed
+separately**. Each is a config on/off flag (settable via the existing `config`
+CLI), both **default ON**:
 
-CLI-only, same as the calendar cache. The deployed Worker is untouched (stateless,
-no filesystem). This adds a second local cache alongside `calendar-cache.json`.
+- **`CALENDAR_CHECK`** (default `true`):
+  - **on** → before punching, check today's shift date/time against today, reading
+    the calendar **cache** (auto-sync when the cache is past its TTL or missing,
+    then check — the existing `cachedDayInfo` behavior).
+  - **off** → skip the calendar check entirely: just punch, no workday guard, no
+    calendar read.
+- **`SESSION_CACHE`** (default `true`):
+  - **on** → reuse the validated cached cookie (validate-before-use, 9-day TTL);
+    fresh login only when it's missing / expired / dead.
+  - **off** → fresh login every run (today's behavior).
 
-## Revocation handling — validate before use
+The two are wholly independent. There is **no unified `cache` command** — the
+toggles plus auto-sync (and validate-before-use) are the entire control surface.
+`npm run calendar:sync` stays for on-demand pre-warm/verify of the calendar file.
 
-A cached cookie can be killed server-side **before** its TTL (password change,
-forced logout). Blindly reusing a dead-but-unexpired cookie would make commands
-fail repeatedly until the TTL passed — a footgun. So:
+Scope: CLI-only. The deployed Worker is untouched (stateless, no filesystem); it
+never reads these flags (its scheduler always reads the calendar live).
 
-**Before trusting a cached cookie, run one cheap authenticated GET (the locations
-list) to confirm it's alive.** If that GET fails (401 / login-redirect / network
-error), discard the cookie and do a full login. This is uniform (independent of
-how each API module reports auth failure) and safe (a GET has no side effects —
-crucially, we never punch with an unvalidated cookie).
+## Revocation handling — validate before use (unchanged)
 
-Trade-off accepted: a validating GET (~300ms) instead of skipping auth entirely.
-Still cheaper than the 3-step login, and it cuts the password-logins to ~one per
-9 days — the main win.
+A cached cookie can be killed server-side before its TTL (password change, forced
+logout). Reusing a dead-but-unexpired cookie would fail repeatedly until the TTL
+passed. So when `SESSION_CACHE` is on: **before trusting a cached cookie, run one
+cheap authenticated GET (the locations list); if it fails, discard and log in
+fresh.** Uniform (independent of how each API module reports auth failure) and
+safe (a GET has no side effects — we never punch with an unvalidated cookie).
 
 ## Architecture
 
-Mirrors the calendar cache: storage-agnostic core in `src/`, file store in
-`scripts/`, validator in the CLI layer (it makes an API call, so it can't live in
-the pure core).
-
 ### `src/cache-store.ts` (new) — shared storage interface
 
-Extract the `CacheStore` interface (currently defined in `calendar-cache.ts`) so
-both caches share it:
+Extract the `CacheStore` interface (currently in `calendar-cache.ts`) so both
+caches share it. `calendar-cache.ts`, `session-cache.ts`, and
+`scripts/cache-fs.ts` import it from here.
 
 ```ts
 export interface CacheStore {
-  read: (key: string) => Promise<string | null>; // null when absent
+  read: (key: string) => Promise<string | null>;
   write: (key: string, contents: string) => Promise<void>;
 }
 ```
-
-`calendar-cache.ts`, `session-cache.ts`, and `scripts/cache-fs.ts` all import it
-from here. `calendar-cache.ts` drops its local definition.
 
 ### `src/session-cache.ts` (new) — storage-agnostic core, no `node:` import
 
@@ -79,68 +80,73 @@ export async function getSession(
   cfg: Config, store: CacheStore, opts?: SessionOpts,
 ): Promise<{ session: Session; source: "cache" | "fresh" }>
 
-// Force-write a cookie to the cache (used by `cache sync`).
+// Force-write a cookie to the cache (used by `calendar:sync` / any pre-warm).
 export async function saveSession(store: CacheStore, session: Session, now?: () => Date): Promise<void>
 ```
 
-- TTL default: **9 days** (`9 * 24 * 60 * 60 * 1000`), margin under the ~10-day cookie life.
-- `readCachedCookie` returns null on missing/corrupt/missing-field/unparseable-date/expired.
-- `getSession` flow: read cached cookie → if present and (`!validate` or `await validate(session)`) → return `{source:"cache"}`; else `login(cfg)`, save, return `{source:"fresh"}`.
-- `login`/`now`/`validate`/`ttlMs` injectable → unit-testable with no network.
+- TTL default: **9 days**, margin under the ~10-day cookie life.
+- `readCachedCookie` → null on missing / corrupt / missing-field / unparseable-date / expired.
+- `getSession` flow: read cached cookie → if present and (`!validate` or `await validate(session)`) → `{source:"cache"}`; else `login(cfg)`, save, `{source:"fresh"}`.
+- All boundaries injectable → unit-testable with no network.
 
-### `scripts/session.ts` (new) — the CLI session helper (with validator)
+### `scripts/session.ts` (new) — CLI session helper honoring `SESSION_CACHE`
 
 ```ts
 export async function cliSession(cfg: Config): Promise<{ session: Session; source: "cache" | "fresh" }>
 ```
-Calls `getSession(cfg, fileStore, { validate })` where
-`validate = (s) => getLocations(s, cfg).then(() => true).catch(() => false)`.
-One place, reused by every entrypoint. Not imported by tests (they test
-`src/session-cache.ts` directly with fakes).
+- If `cfg.sessionCache` is off → `{ session: await login(cfg), source: "fresh" }` (no cache touched).
+- If on → `getSession(cfg, fileStore, { validate })` where
+  `validate = (s) => getLocations(s, cfg).then(() => true).catch(() => false)`.
+- One place, reused by every entrypoint. Not imported by tests (they test
+  `src/session-cache.ts` directly with fakes).
 
-### Wiring — entrypoints swap `login(cfg)` → `cliSession(cfg)`
+### Config additions (`src/config.ts`)
 
-- `scripts/punch-now.ts`, `scripts/list-locations.ts`, `scripts/config-cli.ts`
-  (the no-id `set location` path): `const { session } = await cliSession(cfg);`
-  in place of `const session = await login(cfg);`. Where useful, surface the
-  `source` (cache/fresh) in output.
-- `list-locations` will do two GETs (validate + its own listing). Accepted — it's
-  a rare command; keeping the validation uniform avoids the revocation footgun.
-
-## Unified `cache` command — `scripts/cache-cli.ts` (new)
-
-Replaces `scripts/sync-calendar.ts` and the `calendar:sync` npm script.
-
+Add two booleans to `Config`, read by `loadConfig` (default `true`):
+```ts
+calendarCheck: bool(env, "CALENDAR_CHECK", true),
+sessionCache:  bool(env, "SESSION_CACHE", true),
 ```
-npm run cache sync    # one fresh login → saveSession + syncCalendar (warms BOTH caches, no punch)
-npm run cache clear   # delete session-cache.json and calendar-cache.json
-```
+They only affect the CLI (below); the Worker's scheduler never consults them.
 
-- `sync`: `login(cfg)` fresh (guarantees a fresh cookie), `saveSession(fileStore, session)`,
-  then `syncCalendar(session, cfg, dateKey, fileStore)`. Reports both warmed
-  (cookie saved; N calendar days). Uses `login` directly, not `cliSession`, since
-  the point is to refresh, not reuse.
-- `clear`: `unlink` `SESSION_KEY` and `CACHE_KEY` (ignore ENOENT); report which were removed.
-- `scripts/sync-calendar.ts` is deleted; `package.json` drops `calendar:sync`, adds `"cache": "tsx scripts/cache-cli.ts"`.
+### Wiring
 
-## Security & config
+- **`scripts/punch-now.ts`**:
+  - Session: `const { session } = await cliSession(cfg);` in place of `login(cfg)`.
+  - Calendar: if `cfg.calendarCheck` → `cachedDayInfo(...)` + the existing workday
+    guard/exit; if not → skip straight to the punch (log that the check is off).
+- **`scripts/list-locations.ts`**, **`scripts/config-cli.ts`** (no-id `set
+  location` path): session via `cliSession(cfg)` (they don't do a calendar check).
+- **`scripts/sync-calendar.ts`** (`calendar:sync`): logs in and `saveSession` when
+  `SESSION_CACHE` is on (so a sync also warms the cookie), then `syncCalendar`.
+
+### Config CLI toggles (`scripts/config-cli.ts`, `scripts/dev-vars.ts`)
+
+- Add fields to `FIELDS`: `calendar` → `["CALENDAR_CHECK"]`, `session` → `["SESSION_CACHE"]`.
+- These are booleans: `config set calendar on|off` (also accept `true|false`) →
+  normalize to `"true"`/`"false"` before upserting. Add a small `normalizeBool`
+  step in the entrypoint for boolean fields; `buildEntries` stays a pure mapper.
+- `config list` gains two lines: `calendar : on|off`, `session : on|off`.
+
+### Security & config
 
 - `session-cache.json` holds a ~9-day bearer token → **gitignore it**, and make
   `scripts/cache-fs.ts` `fileStore.write` set mode `0600` (+ `chmod`), which also
   harmlessly tightens `calendar-cache.json`.
-- Both cache files are written at the process CWD (the key IS the path), same as today.
 
 ## Testing
 
-- `test/session-cache.test.ts` (new), all with injected `store`/`now`/`login`/`validate`, no network:
-  - `readCachedCookie`: fresh→cookie; expired (>TTL)→null; missing raw→null; corrupt JSON→null; missing `cookie`/`savedAt`→null; unparseable `savedAt`→null.
-  - `getSession`: no cache → login + save + `source:"fresh"`; cached + validate→true → reuse, **no login**, `source:"cache"`; cached + validate→false → login + save + `source:"fresh"`; expired → login; write failure → non-fatal (still returns fresh session); no `validate` provided + cached → reuse without a check.
-  - `saveSession`: writes `{cookie, savedAt}` JSON via the store.
-- Existing calendar-cache/locations/etc. tests must stay green after the `CacheStore` extraction.
-- Entrypoints and the `getLocations` validator are verified by a live run (against a throwaway cache; the real login path is already proven).
+- `test/session-cache.test.ts` (new), injected `store`/`now`/`login`/`validate`, no network:
+  - `readCachedCookie`: fresh→cookie; expired→null; missing raw→null; corrupt JSON→null; missing `cookie`/`savedAt`→null; unparseable `savedAt`→null.
+  - `getSession`: no cache → login+save+`fresh`; cached+valid → reuse, **no login**, `cache`; cached+invalid → login+save+`fresh`; expired → login; write failure → non-fatal; no `validate` + cached → reuse without a check.
+  - `saveSession`: writes `{cookie, savedAt}` via the store.
+- `test/dev-vars.test.ts`: extend `buildEntries` cases for the `calendar`/`session` fields.
+- `test/config.test.ts` (if present): `calendarCheck`/`sessionCache` default `true`; `"false"` → `false`.
+- Existing calendar-cache / locations / config tests stay green after the `CacheStore` extraction.
+- Entrypoints, the `getLocations` validator, and the toggles are verified by a live run (against a throwaway `.dev.vars`; the real login path is already proven).
 
 ## Out of scope
 
-- Worker-side caching (stateless; no filesystem — a future KV `CacheStore` could reuse this core).
-- `cache status` (YAGNI for now).
-- Any change to punch/calendar behavior beyond how the session is obtained.
+- Worker-side caching (stateless; a future KV `CacheStore` could reuse this core).
+- A unified `cache` command / `cache clear` (dropped — toggles + auto-sync + validate-before-use are the control).
+- Any change to punch/calendar behavior beyond the session source and the calendar-check toggle.
