@@ -26,7 +26,7 @@ function usage(): never {
       "  npm run config set pos <lat> <lng>\n" +
       "  npm run config set calendar on|off     # check today's shift before punching\n" +
       "  npm run config set session on|off      # reuse the cached login cookie\n" +
-      "  npm run config list",
+      "  npm run config                          # show the effective config",
   );
   process.exit(1);
 }
@@ -153,5 +153,5 @@ function cmdList(): void {
 
 const [cmd, field, ...values] = process.argv.slice(2);
 if (cmd === "set") await cmdSet(field, values);
-else if (cmd === "list") cmdList();
+else if (!cmd || cmd === "list") cmdList(); // bare `config` shows the effective config
 else usage();

@@ -94,7 +94,7 @@ independent toggles, both **on** by default, set via `config` (or env
 - `npm run config set calendar on|off` — check today's shift (workday guard) before punching, or skip it.
 - `npm run config set session on|off` — reuse the ~10-day login cookie (validated before use), or log in fresh each run.
 - `npm run punch in -- --force` (`-f`) — skip the calendar check for that one run. (the `--` is required so npm forwards the flag to the script)
-- `npm run config list` shows the effective config, both toggles, password masked.
+- `npm run config` shows the effective config, both toggles, password masked.
 
 The session cookie lives in gitignored `session-cache.json` (mode 600); it's
 reused across runs and re-validated by a cheap request, so a revoked cookie
