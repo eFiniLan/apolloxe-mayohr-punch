@@ -22,10 +22,11 @@ function deps(over: Partial<Deps> & { punchOutcome?: PunchOutcome; dayInfo?: any
   const punchOutcome: PunchOutcome =
     over.punchOutcome ?? { outcome: "success", attendanceHistoryId: "AH", punchDate: "09:20", locationName: "HQ" };
   return {
-    login: over.login ?? (vi.fn(async () => ({ cookie: "c" })) as any),
-    getDayInfo: vi.fn(async () => over.dayInfo ?? WORKDAY) as any,
+    acquireSession: over.acquireSession ?? (vi.fn(async () => ({ session: { cookie: "c" }, source: "fresh" })) as any),
+    getDay: vi.fn(async () => ({ info: over.dayInfo ?? WORKDAY })) as any,
     punch: vi.fn(async () => punchOutcome) as any,
     notify: vi.fn(async () => {}) as any,
+    store: over.store,
     rand: () => 0,
     now: over.now ?? tw(9, 20),
   };
@@ -61,7 +62,7 @@ describe("runScheduler (stateless)", () => {
   it("does not punch before the target time", async () => {
     const d = deps({ now: tw(9, 10) }); // before 09:19
     await runScheduler(baseEnv, d);
-    expect(d.getDayInfo).toHaveBeenCalledOnce();
+    expect(d.getDay).toHaveBeenCalledOnce();
     expect(d.punch).not.toHaveBeenCalled();
     expect(d.notify).not.toHaveBeenCalled();
   });
@@ -99,12 +100,18 @@ describe("runScheduler (stateless)", () => {
     expect(d.punch).toHaveBeenCalledWith(expect.anything(), expect.anything(), "out");
   });
 
-  it("emails a failure and rethrows when login throws", async () => {
-    const login = vi.fn(async () => {
-      throw new Error("login down");
-    });
-    const d = deps({ now: tw(9, 20), login: login as any });
+  it("emails a failure and rethrows when acquiring the session throws", async () => {
+    const acquireSession = vi.fn(async () => { throw new Error("login down"); });
+    const d = deps({ now: tw(9, 20), acquireSession: acquireSession as any });
     await expect(runScheduler(baseEnv, d)).rejects.toThrow("login down");
     expect(d.notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "failure" }));
+  });
+
+  it("forwards the store to acquireSession and getDay", async () => {
+    const store = { read: vi.fn(), write: vi.fn() } as any;
+    const d = deps({ now: tw(9, 20), store });
+    await runScheduler(baseEnv, d);
+    expect(d.acquireSession).toHaveBeenCalledWith(expect.anything(), store);
+    expect(d.getDay).toHaveBeenCalledWith(expect.anything(), expect.anything(), store, expect.anything());
   });
 });

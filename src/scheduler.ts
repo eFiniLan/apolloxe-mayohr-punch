@@ -1,16 +1,17 @@
 import type { Env } from "./index";
 import { loadConfig } from "./config";
 import { nowParts, addMinutes, randInt } from "./time";
-import { login as realLogin } from "./auth";
-import { getDayInfo as realGetDayInfo } from "./calendar";
+import { acquireSession as realAcquireSession, getDay as realGetDay } from "./flow";
+import type { CacheStore } from "./cache-store";
 import { punch as realPunch } from "./punch";
 import { notify as realNotify } from "./notify";
 
 export interface Deps {
-  login: typeof realLogin;
-  getDayInfo: typeof realGetDayInfo;
+  acquireSession: typeof realAcquireSession;
+  getDay: typeof realGetDay;
   punch: typeof realPunch;
   notify: typeof realNotify;
+  store?: CacheStore | null;
   now?: Date;
   rand?: () => number;
 }
@@ -21,8 +22,9 @@ export interface Deps {
 const CRON_STEP_MIN = 5;
 
 /**
- * One cron fire. Stateless — no KV. The server is the source of truth:
- *   login → read today's calendar → (if it's time) punch in/out.
+ * One cron fire. Stateless when `store` is null (the default); with a KV
+ * `store` bound it reuses the cached cookie/calendar. The server is still the
+ * source of truth: login → read today's calendar → (if it's time) punch in/out.
  * Direction is decided by time of day (morning = in, evening = out). The punch
  * is attempted a randomized amount before/after the scheduled boundary, always
  * early-in / late-out. Idempotency comes from the server: `already_done` and
@@ -32,8 +34,8 @@ const CRON_STEP_MIN = 5;
  */
 export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<void> {
   const d = {
-    login: realLogin,
-    getDayInfo: realGetDayInfo,
+    acquireSession: realAcquireSession,
+    getDay: realGetDay,
     punch: realPunch,
     notify: realNotify,
     ...deps,
@@ -45,8 +47,8 @@ export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<
   const direction: "in" | "out" = hhmm < "12:00" ? "in" : "out";
 
   try {
-    const session = await d.login(cfg);
-    const info = await d.getDayInfo(session, cfg, dateKey);
+    const { session } = await d.acquireSession(cfg, d.store ?? null);
+    const { info } = await d.getDay(session, cfg, d.store ?? null, dateKey);
 
     if (!info.isWorkday) return; // weekend / holiday
     if (cfg.respectLeave && info.onLeave) return;
