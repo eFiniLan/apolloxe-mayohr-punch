@@ -6,10 +6,6 @@ export interface Config {
   // tenant, so no separate company/employee code is needed.
   userName: string;
   password: string;
-  // Notify (Resend)
-  resendApiKey: string;
-  notifyTo: string;
-  notifyFrom: string;
   userAgent: string;
   // GPS: the fixed office point, plus a small random shift applied per punch so
   // the reported location is never byte-identical (looks like real phone noise).
@@ -26,8 +22,6 @@ export interface Config {
   // genuinely fails the failure email reaches you with time to punch manually.
   reactionBufferMin: number;
   respectLeave: boolean;
-  notifyOnSuccess: boolean;
-  notifyOnFailure: boolean;
   dryRun: boolean;
   calendarCheck: boolean; // CLI: check today's shift before punching
   sessionCache: boolean; // CLI: reuse the cached session cookie
@@ -63,9 +57,6 @@ export function loadConfig(env: Env): Config {
     timezone: opt(env, "TIMEZONE", "Asia/Taipei"),
     userName: req(env, "MAYO_USERNAME"),
     password: req(env, "MAYO_PASSWORD"),
-    resendApiKey: req(env, "RESEND_API_KEY"),
-    notifyTo: req(env, "NOTIFY_TO"),
-    notifyFrom: req(env, "NOTIFY_FROM"),
     userAgent: opt(
       env,
       "USER_AGENT",
@@ -80,8 +71,6 @@ export function loadConfig(env: Env): Config {
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
     reactionBufferMin: Math.max(0, num(env, "REACTION_BUFFER_MIN", 10)),
     respectLeave: bool(env, "RESPECT_LEAVE", false),
-    notifyOnSuccess: bool(env, "NOTIFY_ON_SUCCESS", true),
-    notifyOnFailure: bool(env, "NOTIFY_ON_FAILURE", true),
     dryRun: bool(env, "DRY_RUN", false),
     calendarCheck: bool(env, "CALENDAR_CHECK", true),
     sessionCache: bool(env, "SESSION_CACHE", true),

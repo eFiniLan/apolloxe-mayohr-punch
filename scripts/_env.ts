@@ -49,10 +49,6 @@ export function readDevVars(): Record<string, string> {
 export function localConfig(): { cfg: Config; credsFrom: string } {
   const dev = readDevVars();
   const env: Record<string, string> = {
-    // loadConfig requires these; the CLI helpers never send email, so stub them.
-    RESEND_API_KEY: "unused",
-    NOTIFY_TO: "unused@example.com",
-    NOTIFY_FROM: "unused@example.com",
     ...dev,
     ...(process.env as Record<string, string>),
   };
