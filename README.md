@@ -39,19 +39,27 @@ login → read today's calendar → workday? ──no─→ skip (weekend/holida
 npm install
 ```
 
-1. **Local credentials** — create `.dev.vars` in the project root (gitignored;
-   also what `wrangler dev` reads). The CLI helpers below use it:
+1. **Local credentials** — set them with the config CLI (writes gitignored
+   `.dev.vars`, which is also what `wrangler dev` reads):
+   ```bash
+   npm run config set username you@company.com
+   npm run config set password            # prompted, hidden — not echoed or stored in shell history
    ```
-   MAYO_USERNAME=you@company.com
-   MAYO_PASSWORD=your-password
-   ```
+   (You can also hand-create `.dev.vars` with `MAYO_USERNAME=` / `MAYO_PASSWORD=` lines.)
 
 2. **Pick your punch location** (which office to report):
    ```bash
-   npm run locations
+   npm run config set location            # no id → lists your offices, then re-run with one:
+   npm run config set location 0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1
    ```
-   Put the chosen `PunchesLocationId` into `wrangler.toml` → `PUNCHES_LOCATION_ID`,
-   and set `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` to that office's coordinates.
+   **The location id and the GPS coordinates must be the same office** — the punch
+   sends both, and a mismatch can trip the office geofence. So set `pos` to match:
+   ```bash
+   npm run config set pos 25.0781415 121.5703676   # that office's real coordinates
+   ```
+   The default already pairs L001 台北辦公室 (`0e7d3f49…`) with the Taipei coords
+   above, so if you punch from Taipei you can skip this step. Run `npm run config
+   list` to see the effective values (password masked).
 
 3. **Set deployed secrets** (separate from `.dev.vars`; never commit these):
    ```bash
@@ -119,12 +127,14 @@ Mayo's recorded time, and check Apollo shows exactly one in + one out.
 ## Layout
 
 - `src/` — `config`, `auth` (cookie/CSRF login), `calendar`, `punch` (GPS /locate),
-  `notify` (Resend), `time`, `scheduler` (stateless per-fire logic), `index` (cron handler),
-  `calendar-cache` (storage-agnostic shift cache used by the CLI; a future Worker
-  could reuse it with a KV store).
+  `locations` (EnableList), `notify` (Resend), `time`, `scheduler` (stateless
+  per-fire logic), `index` (cron handler), `calendar-cache` (storage-agnostic shift
+  cache used by the CLI; a future Worker could reuse it with a KV store).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
-  clock in/out), `list-locations.ts` (pick your `PUNCHES_LOCATION_ID`), `sync-calendar.ts`
-  (`npm run calendar:sync`), `cache-fs.ts` (file-backed cache store),
-  `_env.ts` (shared `.dev.vars` + config bootstrap).
+  clock in/out), `config-cli.ts` (`npm run config set|list` — writes `.dev.vars`),
+  `list-locations.ts` (`npm run locations`), `sync-calendar.ts`
+  (`npm run calendar:sync`), `dev-vars.ts` (pure `.dev.vars` editing) +
+  `cache-fs.ts` (file-backed cache store), `_env.ts` (shared `.dev.vars` + config
+  bootstrap; `APOLLO_DEV_VARS` overrides the file path).
 - `docs/` — the design spec, plan, and confirmed API facts.

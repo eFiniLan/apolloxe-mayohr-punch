@@ -13,12 +13,19 @@ import { loadConfig, type Config } from "../src/config";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+/**
+ * Path to the local secrets file. Defaults to `.dev.vars` in the project root;
+ * override with APOLLO_DEV_VARS to point the CLI at an alternate file (also used
+ * to exercise `config set` against a throwaway file without touching real creds).
+ */
+export const DEV_VARS_PATH = process.env.APOLLO_DEV_VARS || join(ROOT, ".dev.vars");
+
 /** Minimal dotenv parse of .dev.vars: KEY=value, `#` comments, optional quotes. */
-function readDevVars(): Record<string, string> {
+export function readDevVars(): Record<string, string> {
   const out: Record<string, string> = {};
   let raw: string;
   try {
-    raw = readFileSync(join(ROOT, ".dev.vars"), "utf8");
+    raw = readFileSync(DEV_VARS_PATH, "utf8");
   } catch {
     return out; // absent is fine — env vars may supply everything
   }
