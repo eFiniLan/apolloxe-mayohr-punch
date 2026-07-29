@@ -21,7 +21,7 @@ function usage(): never {
     "Usage:\n" +
       "  npm run config set username <email>\n" +
       "  npm run config set password            # prompted, hidden\n" +
-      "  npm run config set location [<id>]     # no id = list your locations\n" +
+      "  npm run config set location [<PunchesLocationId>]   # no id = list your locations\n" +
       "  npm run config set pos <lat> <lng>\n" +
       "  npm run config list",
   );
