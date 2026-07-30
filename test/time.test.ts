@@ -1,5 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { nowParts, addMinutes, randInt } from "../src/time";
+import { nowParts, addMinutes, randInt, isValidDateKey } from "../src/time";
+
+describe("isValidDateKey", () => {
+  it("accepts real dates (incl. a leap day)", () => {
+    expect(isValidDateKey("2026-08-01")).toBe(true);
+    expect(isValidDateKey("2026-02-28")).toBe(true);
+    expect(isValidDateKey("2028-02-29")).toBe(true); // 2028 is a leap year
+  });
+  it("rejects bad format and impossible dates", () => {
+    expect(isValidDateKey("not-a-date")).toBe(false);
+    expect(isValidDateKey("2026-13-01")).toBe(false); // month 13
+    expect(isValidDateKey("2026-07-32")).toBe(false); // day 32
+    expect(isValidDateKey("2026-02-30")).toBe(false); // rolls over → rejected
+    expect(isValidDateKey("2026-02-29")).toBe(false); // 2026 not a leap year
+    expect(isValidDateKey("2026-2-1")).toBe(false); // not zero-padded
+  });
+});
 
 describe("nowParts", () => {
   it("splits an instant into local dateKey + HH:MM for a tz", () => {

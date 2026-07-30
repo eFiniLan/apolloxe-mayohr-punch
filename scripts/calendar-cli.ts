@@ -9,7 +9,7 @@
 // Exit: 0 = workday · 1 = not a workday · 2 = usage · 3 = couldn't run.
 import { acquireSession } from "../src/flow";
 import { getDayInfo } from "../src/calendar";
-import { nowParts } from "../src/time";
+import { nowParts, isValidDateKey } from "../src/time";
 import { localConfig } from "./_env";
 import { fileStore } from "./cache-fs";
 
@@ -18,16 +18,23 @@ const asJson = args.includes("--json") || args.includes("-j");
 const dateArg = args.find((a) => !a.startsWith("-"));
 
 const { cfg } = localConfig();
-const dateKey = dateArg ?? nowParts(cfg.timezone).dateKey;
+const now = new Date();
+const dateKey = dateArg ?? nowParts(cfg.timezone, now).dateKey;
 
-if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
-  console.error(`Usage: npm run calendar [YYYY-MM-DD] [-- --json]   (got "${dateKey}")`);
+// Must be a real calendar date (rejects 2026-07-32 / 2026-02-30 / etc.)…
+if (!isValidDateKey(dateKey)) {
+  console.error(`Usage: npm run calendar [YYYY-MM-DD] [-- --json]   (invalid date "${dateKey}")`);
+  process.exit(2);
+}
+// …and within ~1 year of today (Mayo's calendar only covers dates near now).
+const dateMs = Date.parse(`${dateKey}T00:00:00Z`);
+const YEAR_MS = 366 * 24 * 60 * 60 * 1000;
+if (Math.abs(dateMs - now.getTime()) > YEAR_MS) {
+  console.error(`"${dateKey}" is more than a year from today — the calendar only covers dates near now.`);
   process.exit(2);
 }
 
-const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(
-  new Date(`${dateKey}T00:00:00Z`),
-);
+const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(new Date(dateMs));
 
 console.log(`\x1b[1m📅 ${dateKey} (${weekday})\x1b[0m  [${cfg.timezone}]`);
 
