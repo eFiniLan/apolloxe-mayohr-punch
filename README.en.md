@@ -111,9 +111,13 @@ you want to be alerted.
 ## Deploy the Worker (optional)
 
 The Worker is optional. If you want hands-off automation, here's the safe path.
-A Cloudflare **free plan is enough** (cron triggers are free).
 
-First, create your config from the template — `wrangler.toml` is gitignored, so your
+**Prerequisites:** a free [Cloudflare account](https://dash.cloudflare.com/sign-up)
+(the cron triggers this uses are on the free plan) and **Node.js 18+**. Run
+`npm install` in the repo root first — every command below uses the repo's pinned
+`wrangler` via `npx`, so there's nothing to install globally.
+
+Then create your config from the template — `wrangler.toml` is gitignored, so your
 office id / coords / login stay out of the repo:
 ```bash
 cp wrangler.toml.example wrangler.toml
@@ -172,6 +176,22 @@ npx wrangler deploy
 ```
 Unbound, the Worker stays stateless (today's behavior) — server-side idempotency
 still prevents double punches either way.
+
+### Worker gotchas
+
+- **The Worker's name is the `name` field in `wrangler.toml`.** `npx wrangler tail`,
+  `deploy`, and `delete` all key off it. If a command says *"This Worker does not
+  exist"*, you're using a different name than what's deployed — run
+  `npx wrangler tail <deployed-name>` with the actual name (find it in the
+  Cloudflare dashboard).
+- **Secrets are per-Worker.** If you rename the Worker (change `name`), the next
+  `deploy` creates a *brand-new* Worker with **no secrets** — re-run
+  `npx wrangler secret put MAYO_PASSWORD`, then
+  `npx wrangler delete --name <old-name>` the old one so you don't have **two** crons
+  punching.
+- **The Cloudflare dashboard shows times in UTC** (Taipei = UTC+8). An event at
+  "11:15" there is 19:15 Taipei. The Worker's own log lines print Taipei time, so
+  read those when in doubt.
 
 ## Configuration (all optional except secrets)
 

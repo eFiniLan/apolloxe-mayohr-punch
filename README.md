@@ -103,10 +103,13 @@ npm install
 
 ## 部署 Worker（選用）
 
-Worker 是選用的。若你想要免動手的自動化，這是安全的做法。Cloudflare **免費方案
-就夠了**（cron 觸發器免費）。
+Worker 是選用的。若你想要免動手的自動化，這是安全的做法。
 
-先用範本建立你的設定檔 — `wrangler.toml` 已被 gitignore，所以你的辦公室 id／座標／
+**事前準備：** 一個免費的 [Cloudflare 帳號](https://dash.cloudflare.com/sign-up)
+（這裡用到的 cron 觸發器在免費方案即可）與 **Node.js 18+**。請先在 repo 根目錄執行
+`npm install` — 以下所有指令都透過 `npx` 使用 repo 內鎖定版本的 `wrangler`，不需全域安裝。
+
+接著用範本建立你的設定檔 — `wrangler.toml` 已被 gitignore，所以你的辦公室 id／座標／
 帳號不會進到 repo：
 ```bash
 cp wrangler.toml.example wrangler.toml
@@ -162,6 +165,18 @@ npx wrangler kv namespace create APOLLO_KV
 npx wrangler deploy
 ```
 不綁定時，Worker 維持無狀態（現行行為）— 無論如何，伺服器端的冪等性都能防止重複打卡。
+
+### Worker 常見陷阱
+
+- **Worker 的名稱來自 `wrangler.toml` 的 `name` 欄位。** `npx wrangler tail`、`deploy`、
+  `delete` 都以它為準。若指令回報 *「This Worker does not exist」*，代表你用的名稱跟已部署
+  的不同 — 改用實際名稱：`npx wrangler tail <已部署的名稱>`（可在 Cloudflare 主控台查到）。
+- **Secrets 是每個 Worker 各自獨立的。** 若你改了 Worker 名稱（改 `name`），下次 `deploy`
+  會建立一個**全新、沒有任何 secret** 的 Worker — 要重跑 `npx wrangler secret put
+  MAYO_PASSWORD`，再用 `npx wrangler delete --name <舊名稱>` 刪掉舊的，以免**兩個** cron
+  同時打卡。
+- **Cloudflare 主控台顯示的是 UTC 時間**（台北 = UTC+8）。主控台上「11:15」的事件其實是台北
+  19:15。Worker 自己的日誌印的是台北時間，有疑問時以那個為準。
 
 ## 設定項（除 secrets 外皆為選用）
 
