@@ -60,6 +60,22 @@ describe("runScheduler (stateless)", () => {
     expect(d.punch).not.toHaveBeenCalled();
   });
 
+  it("logs the skip reason on a non-workday", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps({ dayInfo: { isWorkday: false, onLeave: false, shiftStart: null, shiftEnd: null } });
+    await runScheduler(baseEnv, d);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/not a workday/));
+    log.mockRestore();
+  });
+
+  it("logs 'not time yet' before the target", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps({ now: tw(9, 10) });
+    await runScheduler(baseEnv, d);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/not time yet/));
+    log.mockRestore();
+  });
+
   it("clocks in past the target (resolves, no throw)", async () => {
     const d = deps({ now: tw(9, 20) });
     await expect(runScheduler(baseEnv, d)).resolves.toBeUndefined();

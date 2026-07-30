@@ -46,8 +46,14 @@ export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<
   const { session } = await d.acquireSession(cfg, d.store ?? null);
   const { info } = await d.getDay(session, cfg, d.store ?? null, dateKey);
 
-  if (!info.isWorkday) return; // weekend / holiday
-  if (cfg.respectLeave && info.onLeave) return;
+  if (!info.isWorkday) {
+    console.log(`apollo: ${dateKey} — skipped, not a workday`);
+    return; // weekend / holiday
+  }
+  if (cfg.respectLeave && info.onLeave) {
+    console.log(`apollo: ${dateKey} — skipped, on approved leave`);
+    return;
+  }
 
   // Clock-in needs the shift START; clock-out needs the shift END. A workday
   // missing the relevant time is an anomaly — fail the run rather than skip silently.
@@ -69,7 +75,10 @@ export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<
       ? addMinutes(boundary, -Math.max(CRON_STEP_MIN, cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)))
       : addMinutes(boundary, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
 
-  if (hhmm < target) return; // not time yet
+  if (hhmm < target) {
+    console.log(`apollo: clock-${direction} ${dateKey} — not time yet (${hhmm} < target ${target})`);
+    return;
+  }
 
   const r = await d.punch(session, cfg, direction);
   const { ok, reason } = summarize(direction, r);
