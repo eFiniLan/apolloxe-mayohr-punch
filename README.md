@@ -7,11 +7,11 @@
 A little tool that punches you in/out of Apollo XE (MayoHR) so you don't have to,
 driven by your own shift calendar. Its core logs in, reads Mayo's schedule for the
 day, and punches via the GPS `/locate` endpoint (validates by location, not IP).
-**You run it from the CLI (`npm run punch in|out`) — that's the project.** The
-optional, thin **Cloudflare Worker** adds the *set-it-and-forget-it* magic: it uses
-your shift calendar to punch in/out at the right time, hands-off (direction from
-time of day, timing from the shift's start/end). The CLI reports via exit codes;
-the Worker marks a failed cron run in Cloudflare.
+You run it from the CLI (`npm run punch in|out`). We also include an optional, thin
+**Cloudflare Worker** for hands-off punch in/out automation: it uses your shift
+calendar to punch at the right time (direction from time of day, timing from the
+shift's start/end). The CLI reports via exit codes; the Worker marks a failed cron
+run in Cloudflare.
 
 ## How it works
 

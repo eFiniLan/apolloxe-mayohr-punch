@@ -6,10 +6,10 @@
 
 一個替你打卡進／出 Apollo XE（MayoHR）的小工具 — 讓你再也不用記得打卡。它的核心會
 登入、讀取當天的 Mayo 班表，並透過 GPS `/locate` 端點打卡（以「位置」而非「IP」驗證）。
-**你用 CLI（`npm run punch in|out`）操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
-**Cloudflare Worker** 則負責「設定好就忘記它」的自動化：依你的班表在對的時間自動打卡進／
-出、完全不用你動手（方向由當下時間決定，時機取自班表的開始／結束）。CLI 以 exit code
-回報；Worker 則以「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
+你用 CLI（`npm run punch in|out`）操作它。我們也附上一個選用、輕薄的 **Cloudflare Worker**
+來做打卡進／出的自動化：依你的班表在對的時間自動打卡、完全不用你動手（方向由當下時間
+決定，時機取自班表的開始／結束）。CLI 以 exit code 回報；Worker 則以「失敗的 cron 執行」
+在 Cloudflare 上標記錯誤。
 
 ## 運作方式
 
