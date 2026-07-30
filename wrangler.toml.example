@@ -2,6 +2,11 @@ name = "apolloxe-mayohr-punch"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
 
+# Copy this file to `wrangler.toml` and fill in your own values, then deploy.
+# `wrangler.toml` is gitignored so your real office id / coords / login stay
+# out of the repo. MAYO_PASSWORD is never here — set it with:
+#   npx wrangler secret put MAYO_PASSWORD
+
 # Stateless — no KV. Idempotency comes from the server (already_done / cooldown).
 
 # Optional: cache the login cookie + calendar across fires (≈1 login / 9 days
@@ -23,16 +28,15 @@ compatibility_date = "2024-12-30"
 [triggers]
 crons = ["*/5 0-1 * * *", "*/5 10-11 * * *"]
 
-# Non-sensitive defaults. All the optional tuning vars (jitter, early/late
-# minutes, reaction buffer, RESPECT_LEAVE) have sane code defaults — see the
-# README's Configuration table to override them. Secrets (MAYO_USERNAME,
-# MAYO_PASSWORD) go via `wrangler secret put`, never here.
+# Config. Optional tuning vars (jitter, early/late minutes, reaction buffer,
+# RESPECT_LEAVE) have sane code defaults — see the README's Configuration table to
+# override them. Only MAYO_PASSWORD is a secret (`npx wrangler secret put`); the
+# username and location live here. Swap these for your own office.
 [vars]
 TIMEZONE = "Asia/Taipei"
-DRY_RUN = "true"                # safety: run the flow but never actually punch
+DRY_RUN = "true"                # "true" = run the flow but never actually punch (dry-run)
 
-# ⚠️ Set these to YOUR office before going live (find the id with `npm run config
-# set location`, and use that office's real coordinates). Placeholders below:
-PUNCH_LATITUDE = "25.0500000"
+MAYO_USERNAME = "you@company.com"
+PUNCH_LATITUDE = "25.0500000"                              # your office's real coordinates
 PUNCH_LONGITUDE = "121.5500000"
-PUNCHES_LOCATION_ID = "00000000-0000-0000-0000-000000000000"
+PUNCHES_LOCATION_ID = "00000000-0000-0000-0000-000000000000"  # `npm run config set location` to find it

@@ -113,13 +113,20 @@ you want to be alerted.
 The Worker is optional. If you want hands-off automation, here's the safe path.
 A Cloudflare **free plan is enough** (cron triggers are free).
 
+First, create your config from the template — `wrangler.toml` is gitignored, so your
+office id / coords / login stay out of the repo:
+```bash
+cp wrangler.toml.example wrangler.toml
+# then edit MAYO_USERNAME, PUNCHES_LOCATION_ID, PUNCH_LATITUDE / PUNCH_LONGITUDE
+```
+
 1. **Authenticate** wrangler (opens a browser):
    ```bash
    npx wrangler login
    ```
-2. **Set the two secrets** (interactive prompt; your password never touches a file or argv):
+2. **Set the password secret** (the only secret — `MAYO_USERNAME` lives in
+   `wrangler.toml`; the password never touches a file or argv):
    ```bash
-   npx wrangler secret put MAYO_USERNAME
    npx wrangler secret put MAYO_PASSWORD
    ```
 3. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs

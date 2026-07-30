@@ -106,13 +106,20 @@ npm install
 Worker 是選用的。若你想要免動手的自動化，這是安全的做法。Cloudflare **免費方案
 就夠了**（cron 觸發器免費）。
 
+先用範本建立你的設定檔 — `wrangler.toml` 已被 gitignore，所以你的辦公室 id／座標／
+帳號不會進到 repo：
+```bash
+cp wrangler.toml.example wrangler.toml
+# 接著編輯 MAYO_USERNAME、PUNCHES_LOCATION_ID、PUNCH_LATITUDE／PUNCH_LONGITUDE
+```
+
 1. **登入** wrangler（會開瀏覽器）：
    ```bash
    npx wrangler login
    ```
-2. **設定兩個 secrets**（互動式輸入；密碼不會進檔案或 argv）：
+2. **設定密碼 secret**（唯一的 secret — `MAYO_USERNAME` 放在 `wrangler.toml`；
+   密碼不會進檔案或 argv）：
    ```bash
-   npx wrangler secret put MAYO_USERNAME
    npx wrangler secret put MAYO_PASSWORD
    ```
 3. **先用 DRY-RUN 部署。** `wrangler.toml` 預設 `DRY_RUN = "true"`，會跑完整流程

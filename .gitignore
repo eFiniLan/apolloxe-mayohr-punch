@@ -5,3 +5,6 @@ dist/
 *.log
 calendar-cache.json
 session-cache.json
+
+# Local deploy config with real values — use wrangler.toml.example as the template
+wrangler.toml
