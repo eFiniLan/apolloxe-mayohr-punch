@@ -2,13 +2,14 @@
 
 > **English** ・ [繁體中文](README.zh-TW.md)
 
-A tool that auto-clocks you in/out of Apollo XE (MayoHR), driven by your own
-shift calendar. Its core logs in, reads Mayo's schedule for the day, and punches
-via the GPS `/locate` endpoint (which validates by location, not IP). **You drive
-it from the CLI (`npm run punch`) — that's the project.** An optional, thin
-**Cloudflare Worker** is just one way to run the same core hands-off on a schedule
-(deploy it or not). The CLI signals via exit codes; the Worker marks a failed cron
-run in Cloudflare.
+A tool that clocks you in/out of Apollo XE (MayoHR) via the GPS `/locate`
+endpoint (which validates by location, not IP). Its core logs in, reads Mayo's
+schedule for the day, and punches. **You run it from the CLI (`npm run punch
+in|out`) on command — that's the project.** The optional, thin **Cloudflare
+Worker** is what adds the *automation*: it uses your shift calendar to punch in/out
+at the right time, hands-off (direction from time of day, timing from the shift's
+start/end). The CLI signals via exit codes; the Worker marks a failed cron run in
+Cloudflare.
 
 ## How it works
 

@@ -2,10 +2,11 @@
 
 > [English](README.md) ・ **繁體中文**
 
-一個依你自己的班表自動打卡進／出 Apollo XE（MayoHR）的工具。它的核心會登入、讀取
-當天的 Mayo 班表，並透過 GPS `/locate` 端點打卡（該端點以「位置」而非「IP」驗證）。
-**你用 CLI（`npm run punch`）來操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
-**Cloudflare Worker** 只是「讓同一套核心依排程自動執行」的其中一種方式（要不要部署都行）。
+一個透過 GPS `/locate` 端點（以「位置」而非「IP」驗證）替你打卡進／出 Apollo XE
+（MayoHR）的工具。它的核心會登入、讀取當天的 Mayo 班表並打卡。**你用 CLI
+（`npm run punch in|out`）手動操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
+**Cloudflare Worker** 才是負責「自動化」的部分：它依你的班表在對的時間自動打卡進／出、
+完全不用你動手（進／出的方向由當下時間決定，時機則取自班表的開始／結束時間）。
 CLI 以 exit code 回報結果；Worker 則以「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
 
 ## 運作方式
