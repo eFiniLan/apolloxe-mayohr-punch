@@ -2,13 +2,19 @@
 
 > **English** ・ [繁體中文](README.zh-TW.md)
 
-A Cloudflare Worker that automatically clocks you in/out of Apollo XE (MayoHR),
-driven by your own shift calendar. It logs in, reads Mayo's schedule for the day,
-and punches via the GPS `/locate` endpoint (which validates by location, not IP —
-so it works from Cloudflare's network). The CLI signals via exit codes; the
-Worker marks a failed cron run in Cloudflare.
+A tool that auto-clocks you in/out of Apollo XE (MayoHR), driven by your own
+shift calendar. Its core logs in, reads Mayo's schedule for the day, and punches
+via the GPS `/locate` endpoint (which validates by location, not IP). **You drive
+it from the CLI (`npm run punch`) — that's the project.** An optional, thin
+**Cloudflare Worker** is just one way to run the same core hands-off on a schedule
+(deploy it or not). The CLI signals via exit codes; the Worker marks a failed cron
+run in Cloudflare.
 
-## How it works (per cron fire)
+## How it works
+
+The core flow is **login → read today's calendar → punch**. Run it by hand and the
+CLI does exactly that, on command. Run it automatically and the optional Worker
+wraps that same core with cron timing:
 
 ```
 login → read today's calendar → workday? ──no─→ skip (weekend/holiday)
@@ -65,7 +71,7 @@ npm install
    above, so if you punch from Taipei you can skip this step. Run `npm run config
    list` to see the effective values (password masked).
 
-3. **Set deployed secrets** (separate from `.dev.vars`; never commit these):
+3. **(Optional) Set deployed secrets** — only if you run the Worker (separate from `.dev.vars`; never commit these):
    ```bash
    npx wrangler secret put MAYO_USERNAME     # your login email
    npx wrangler secret put MAYO_PASSWORD

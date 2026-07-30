@@ -2,12 +2,16 @@
 
 > [English](README.md) ・ **繁體中文**
 
-一個 Cloudflare Worker，依你自己的班表自動打卡進／出 Apollo XE（MayoHR）。它會登入、
-讀取當天的 Mayo 班表，並透過 GPS `/locate` 端點打卡（該端點是以「位置」而非「IP」
-驗證，所以能從 Cloudflare 的網路運作）。CLI 以 exit code 回報結果；Worker 則以
-「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
+一個依你自己的班表自動打卡進／出 Apollo XE（MayoHR）的工具。它的核心會登入、讀取
+當天的 Mayo 班表，並透過 GPS `/locate` 端點打卡（該端點以「位置」而非「IP」驗證）。
+**你用 CLI（`npm run punch`）來操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
+**Cloudflare Worker** 只是「讓同一套核心依排程自動執行」的其中一種方式（要不要部署都行）。
+CLI 以 exit code 回報結果；Worker 則以「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
 
-## 運作方式（每次 cron 觸發）
+## 運作方式
+
+核心流程是 **登入 → 讀取當天班表 → 打卡**。手動執行時，CLI 就是照這個流程即時打卡。
+自動執行時，選用的 Worker 會在同一套核心外面包上 cron 的時間控制：
 
 ```
 登入 → 讀取當天班表 → 上班日？ ──否─→ 略過（週末／假日）
@@ -62,7 +66,7 @@ npm install
    預設已把 L001 台北辦公室（`0e7d3f49…`）與上面的台北座標配好，所以若你在台北打卡
    可略過此步。執行 `npm run config` 可查看目前生效的設定（密碼會遮蔽）。
 
-3. **設定部署用的 secrets**（與 `.dev.vars` 分開；切勿 commit）：
+3. **（選用）設定部署用的 secrets** — 只有在你要跑 Worker 時才需要（與 `.dev.vars` 分開；切勿 commit）：
    ```bash
    npx wrangler secret put MAYO_USERNAME     # 你的登入 email
    npx wrangler secret put MAYO_PASSWORD
