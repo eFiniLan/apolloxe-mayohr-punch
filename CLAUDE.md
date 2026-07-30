@@ -22,6 +22,7 @@ npm run typecheck             # tsc --noEmit
 npm run dev                   # wrangler dev (reads .dev.vars)
 npm run deploy                # wrangler deploy
 npm run config                # show effective config; `config set location` (no id) lists offices
+npm run calendar [YYYY-MM-DD]  # read-only: is it a workday + shift (exit 0=workday, 1=not)
 npm run punch in|out          # CLI: a REAL end-to-end punch (prefix DRY_RUN=true to dry-run)
 ```
 

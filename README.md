@@ -101,6 +101,7 @@ independent toggles, both **on** by default, set via `config` (or env
 - `npm run config set session on|off` — reuse the ~10-day login cookie (validated before use), or log in fresh each run.
 - `npm run punch in -- --force` (`-f`) — skip the calendar check for that one run. (the `--` is required so npm forwards the flag to the script)
 - `npm run config` shows the effective config, both toggles, password masked.
+- `npm run calendar [YYYY-MM-DD]` — read-only: is that day a workday, and its shift? Never punches; exits `0` (workday) / `1` (not), `-- --json` for a summary line.
 
 The session cookie lives in gitignored `session-cache.json` (mode 600); it's
 reused across runs and re-validated by a cheap request, so a revoked cookie
@@ -171,7 +172,8 @@ still prevents double punches either way.
   (KV `CacheStore` for the Worker), `scheduler` + `index` (the Worker).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
-  clock in/out), `config-cli.ts` (`npm run config` / `config set` — writes
+  clock in/out), `calendar-cli.ts` (`npm run calendar` — read-only workday/shift
+  lookup), `config-cli.ts` (`npm run config` / `config set` — writes
   `.dev.vars`, lists locations via `set location`), `dev-vars.ts` (pure `.dev.vars`
   editing) + `cache-fs.ts` (file-backed cache store), `_env.ts` (shared `.dev.vars`
   + config bootstrap; `APOLLO_DEV_VARS` overrides the file path).

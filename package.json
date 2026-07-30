@@ -8,6 +8,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "punch": "tsx scripts/punch-now.ts",
+    "calendar": "tsx scripts/calendar-cli.ts",
     "config": "tsx scripts/config-cli.ts"
   },
   "devDependencies": {

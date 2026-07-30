@@ -95,6 +95,7 @@ npm install
 - `npm run punch in -- --force`（`-f`）— 這一次略過班表檢查。（`--` 是必要的，讓 npm 把
   旗標轉交給腳本）
 - `npm run config` 會顯示生效設定、兩個開關狀態，密碼遮蔽。
+- `npm run calendar [YYYY-MM-DD]` — 唯讀：查那天是不是上班日、班表為何？絕不打卡；exit code `0`（上班日）／`1`（非上班日），`-- --json` 可輸出摘要行。
 
 登入 cookie 存放在被 gitignore 的 `session-cache.json`（權限 600）；跨次重用、並以一個
 輕量請求先驗證，因此一個被撤銷的 cookie 不會弄壞打卡。
