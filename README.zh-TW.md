@@ -1,13 +1,15 @@
-# apollo-auto-punch
+# apolloxe-mayohr-punch
 
 > [English](README.md) ・ **繁體中文**
 
-一個透過 GPS `/locate` 端點（以「位置」而非「IP」驗證）替你打卡進／出 Apollo XE
-（MayoHR）的工具。它的核心會登入、讀取當天的 Mayo 班表並打卡。**你用 CLI
-（`npm run punch in|out`）手動操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
-**Cloudflare Worker** 才是負責「自動化」的部分：它依你的班表在對的時間自動打卡進／出、
-完全不用你動手（進／出的方向由當下時間決定，時機則取自班表的開始／結束時間）。
-CLI 以 exit code 回報結果；Worker 則以「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
+**懶人的福音，也是容易忘記打卡之人的福音。** 🕘
+
+一個替你打卡進／出 Apollo XE（MayoHR）的小工具 — 讓你再也不用記得打卡。它的核心會
+登入、讀取當天的 Mayo 班表，並透過 GPS `/locate` 端點打卡（以「位置」而非「IP」驗證）。
+**你用 CLI（`npm run punch in|out`）操作它 — 這才是本專案的主體。** 而那個選用、輕薄的
+**Cloudflare Worker** 則負責「設定好就忘記它」的自動化：依你的班表在對的時間自動打卡進／
+出、完全不用你動手（方向由當下時間決定，時機取自班表的開始／結束）。CLI 以 exit code
+回報；Worker 則以「失敗的 cron 執行」在 Cloudflare 上標記錯誤。
 
 ## 運作方式
 
@@ -56,16 +58,15 @@ npm install
 
 2. **選擇打卡地點**（要回報哪個辦公室）：
    ```bash
-   npm run config set location            # 不帶 id → 列出你的辦公室，再帶 id 重跑：
-   npm run config set location 0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1
+   npm run config set location                    # 不帶 id → 列出你的辦公室，再帶 id 重跑：
+   npm run config set location <PunchesLocationId>
    ```
    **地點 id 與 GPS 座標必須是同一個辦公室** — 打卡會同時送出兩者，不一致可能觸發
    辦公室的地理圍欄（geofence）而被拒。所以要一併設定對應的 `pos`：
    ```bash
-   npm run config set pos 25.0781415 121.5703676   # 該辦公室的真實座標
+   npm run config set pos <lat> <lng>             # 該辦公室的真實座標
    ```
-   預設已把 L001 台北辦公室（`0e7d3f49…`）與上面的台北座標配好，所以若你在台北打卡
-   可略過此步。執行 `npm run config` 可查看目前生效的設定（密碼會遮蔽）。
+   執行 `npm run config` 可查看目前生效的設定（密碼會遮蔽）。
 
 3. **本機驗證：**
    ```bash
@@ -160,8 +161,8 @@ npx wrangler deploy
 | 變數 | 預設 | 意義 |
 |-----|---------|---------|
 | `TIMEZONE` | `Asia/Taipei` | 班表時間的時區 |
-| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | 台北辦公室 | 回報的座標 |
-| `PUNCHES_LOCATION_ID` | `0e7d3f49…`（台北辦公室） | 辦公室地點 id |
+| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | 佔位值 | 回報的座標 — 請自行設定 |
+| `PUNCHES_LOCATION_ID` | 佔位值 | 辦公室地點 id — 用 `config set location` 設定 |
 | `GPS_JITTER_METERS` | `12` | 每次打卡的隨機位移半徑 |
 | `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | 提早分鐘數（在緩衝之上） |
 | `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | 下班延後分鐘數 |
@@ -180,4 +181,3 @@ npx wrangler deploy
   `config set` — 寫入 `.dev.vars`，`set location` 可列出地點）、`dev-vars.ts`（純粹的
   `.dev.vars` 編輯）+ `cache-fs.ts`（檔案式快取儲存）、`_env.ts`（共用的 `.dev.vars` +
   設定啟動；`APOLLO_DEV_VARS` 可覆蓋檔案路徑）。
-- `docs/` — 設計規格、實作計畫，以及已驗證的 API 事實。

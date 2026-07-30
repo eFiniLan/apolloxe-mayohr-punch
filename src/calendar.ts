@@ -22,7 +22,7 @@ interface ShiftSchedule {
 // leaveSheets/tripSheets entries — field naming confirmed for leaveSheets
 // (leaveStartDatetime/leaveEndDatetime) via the live fixture; tripSheets are
 // assumed to follow the same "leave*"/"trip*" naming convention per
-// api-facts.md ("same idea"), with generic startDatetime/endDatetime as a
+// the live API (same idea), with generic startDatetime/endDatetime as a
 // fallback since no real tripSheets entry has been captured yet.
 interface ApprovalSheet {
   status: number;
@@ -97,7 +97,7 @@ function deriveDayInfo(entry: CalendarDay, tz: string): DayInfo {
 
 /**
  * Read the scheduling calendar for one month and map every day to a DayInfo,
- * keyed "YYYY-MM-DD". See docs/api-facts.md "Calendar / shift schedule".
+ * keyed "YYYY-MM-DD".
  */
 export async function getMonthInfo(
   session: Session,

@@ -1,15 +1,17 @@
-# apollo-auto-punch
+# apolloxe-mayohr-punch
 
 > **English** ・ [繁體中文](README.zh-TW.md)
 
-A tool that clocks you in/out of Apollo XE (MayoHR) via the GPS `/locate`
-endpoint (which validates by location, not IP). Its core logs in, reads Mayo's
-schedule for the day, and punches. **You run it from the CLI (`npm run punch
-in|out`) on command — that's the project.** The optional, thin **Cloudflare
-Worker** is what adds the *automation*: it uses your shift calendar to punch in/out
-at the right time, hands-off (direction from time of day, timing from the shift's
-start/end). The CLI signals via exit codes; the Worker marks a failed cron run in
-Cloudflare.
+**For the forgetful and the gloriously lazy — never miss a clock-in again.** 🕘
+
+A little tool that punches you in/out of Apollo XE (MayoHR) so you don't have to,
+driven by your own shift calendar. Its core logs in, reads Mayo's schedule for the
+day, and punches via the GPS `/locate` endpoint (validates by location, not IP).
+**You run it from the CLI (`npm run punch in|out`) — that's the project.** The
+optional, thin **Cloudflare Worker** adds the *set-it-and-forget-it* magic: it uses
+your shift calendar to punch in/out at the right time, hands-off (direction from
+time of day, timing from the shift's start/end). The CLI reports via exit codes;
+the Worker marks a failed cron run in Cloudflare.
 
 ## How it works
 
@@ -60,17 +62,15 @@ npm install
 
 2. **Pick your punch location** (which office to report):
    ```bash
-   npm run config set location            # no id → lists your offices, then re-run with one:
-   npm run config set location 0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1
+   npm run config set location                    # no id → lists your offices, then re-run with one:
+   npm run config set location <PunchesLocationId>
    ```
    **The location id and the GPS coordinates must be the same office** — the punch
    sends both, and a mismatch can trip the office geofence. So set `pos` to match:
    ```bash
-   npm run config set pos 25.0781415 121.5703676   # that office's real coordinates
+   npm run config set pos <lat> <lng>             # that office's real coordinates
    ```
-   The default already pairs L001 台北辦公室 (`0e7d3f49…`) with the Taipei coords
-   above, so if you punch from Taipei you can skip this step. Run `npm run config
-   list` to see the effective values (password masked).
+   Run `npm run config` to see the effective values (password masked).
 
 3. **Verify locally:**
    ```bash
@@ -171,8 +171,8 @@ still prevents double punches either way.
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `TIMEZONE` | `Asia/Taipei` | shift-time timezone |
-| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | Taipei office | reported coordinates |
-| `PUNCHES_LOCATION_ID` | `0e7d3f49…` (台北辦公室) | office location id |
+| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | placeholder | reported coordinates — set yours |
+| `PUNCHES_LOCATION_ID` | placeholder | office location id — set via `config set location` |
 | `GPS_JITTER_METERS` | `12` | random shift radius per punch |
 | `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early (on top of buffer) |
 | `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
@@ -193,4 +193,3 @@ still prevents double punches either way.
   `.dev.vars`, lists locations via `set location`), `dev-vars.ts` (pure `.dev.vars`
   editing) + `cache-fs.ts` (file-backed cache store), `_env.ts` (shared `.dev.vars`
   + config bootstrap; `APOLLO_DEV_VARS` overrides the file path).
-- `docs/` — the design spec, plan, and confirmed API facts.

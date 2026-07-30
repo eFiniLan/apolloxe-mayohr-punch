@@ -62,11 +62,11 @@ export function loadConfig(env: Env): Config {
       "USER_AGENT",
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
     ),
-    latitude: opt(env, "PUNCH_LATITUDE", "25.0781415"),
-    longitude: opt(env, "PUNCH_LONGITUDE", "121.5703676"),
+    latitude: opt(env, "PUNCH_LATITUDE", "25.0500000"),
+    longitude: opt(env, "PUNCH_LONGITUDE", "121.5500000"),
     gpsJitterMeters: num(env, "GPS_JITTER_METERS", 12),
-    // default = 台北辦公室 (Taipei office, L001); change via `npm run config set location`
-    punchesLocationId: opt(env, "PUNCHES_LOCATION_ID", "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1"),
+    // default = generic placeholder; set your office via `npm run config set location`
+    punchesLocationId: opt(env, "PUNCHES_LOCATION_ID", "00000000-0000-0000-0000-000000000000"),
     earlyIn: band(env, "PUNCH_EARLY_IN_MIN", "PUNCH_EARLY_IN_MAX", 1, 15),
     lateOut: band(env, "PUNCH_LATE_OUT_MIN", "PUNCH_LATE_OUT_MAX", 1, 15),
     reactionBufferMin: Math.max(0, num(env, "REACTION_BUFFER_MIN", 10)),

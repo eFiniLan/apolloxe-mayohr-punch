@@ -2,15 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { punch, jitterCoord, summarize } from "../src/punch";
 
 const PUNCH_URL = "https://apolloxe.mayohr.com/backend/pt/api/checkIn/punch/locate";
-const OFFICE_LAT = 25.0781415;
-const OFFICE_LNG = 121.5703676;
+const OFFICE_LAT = 25.0500000;
+const OFFICE_LNG = 121.5500000;
 
 const session: any = { cookie: "__ModuleSessionCookie=ABC123" };
 const cfg: any = {
   latitude: String(OFFICE_LAT),
   longitude: String(OFFICE_LNG),
   gpsJitterMeters: 12,
-  punchesLocationId: "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1",
+  punchesLocationId: "00000000-0000-0000-0000-000000000000",
   userAgent: "test-agent/1.0",
   dryRun: false,
 };

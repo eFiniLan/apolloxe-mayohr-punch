@@ -1,4 +1,4 @@
-name = "apollo-auto-punch"
+name = "apolloxe-mayohr-punch"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
 
@@ -23,22 +23,16 @@ compatibility_date = "2024-12-30"
 [triggers]
 crons = ["*/5 0-1 * * *", "*/5 10-11 * * *"]
 
-# Non-sensitive defaults. Code has sane defaults for everything else; override
-# here as needed. Secrets (MAYO_USERNAME, MAYO_PASSWORD) go via
-# `wrangler secret put`, never here.
+# Non-sensitive defaults. All the optional tuning vars (jitter, early/late
+# minutes, reaction buffer, RESPECT_LEAVE) have sane code defaults — see the
+# README's Configuration table to override them. Secrets (MAYO_USERNAME,
+# MAYO_PASSWORD) go via `wrangler secret put`, never here.
 [vars]
 TIMEZONE = "Asia/Taipei"
-DRY_RUN = "true"
-# GPS punch location — office coordinates + the location id it belongs to.
-# Run `npm run config set location` (no id) to see your location ids.
-PUNCH_LATITUDE = "25.0781415"
-PUNCH_LONGITUDE = "121.5703676"
-PUNCHES_LOCATION_ID = "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1" # 台北辦公室 (Taipei, L001)
-# GPS_JITTER_METERS = "12"        # random shift radius per punch
-# Timing (all optional; sensible defaults in code):
-# PUNCH_EARLY_IN_MIN = "1"        # clock in 1–15 min before scheduled start
-# PUNCH_EARLY_IN_MAX = "15"
-# PUNCH_LATE_OUT_MIN = "1"        # clock out 1–15 min after scheduled end
-# PUNCH_LATE_OUT_MAX = "15"
-# REACTION_BUFFER_MIN = "10"      # clock in at least this many min early (so a failed run is visible with time to punch manually)
-# RESPECT_LEAVE = "false"         # true = skip full-day-leave days
+DRY_RUN = "true"                # safety: run the flow but never actually punch
+
+# ⚠️ Set these to YOUR office before going live (find the id with `npm run config
+# set location`, and use that office's real coordinates). Placeholders below:
+PUNCH_LATITUDE = "25.0500000"
+PUNCH_LONGITUDE = "121.5500000"
+PUNCHES_LOCATION_ID = "00000000-0000-0000-0000-000000000000"

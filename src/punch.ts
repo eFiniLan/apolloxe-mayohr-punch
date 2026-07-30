@@ -39,7 +39,7 @@ const METERS_PER_DEGREE_LAT = 111320;
 /**
  * Uniform random point within `meters` of (lat, lng), rounded to 7 decimals.
  * `rand` is injectable (like time.randInt) so the jitter is testable.
- * See docs/api-facts.md "GPS jitter (confirmed accepted)".
+ * (GPS jitter format confirmed against the live API.)
  */
 export function jitterCoord(
   lat: number,
@@ -64,7 +64,7 @@ interface PunchResponse {
  * Clock in/out via the GPS `/locate` endpoint (not IP-gated). The response is
  * self-verifying: Meta.HttpStatusCode === "200" + Data.AttendanceHistoryId IS
  * the confirmation, so there is no separate read-back step.
- * See docs/api-facts.md "Punch — CONFIRMED" and "Punch response — CONFIRMED".
+ * (Endpoint + response shape confirmed against the live API.)
  */
 export async function punch(
   session: Session,

@@ -18,10 +18,10 @@ describe("loadConfig", () => {
     expect(c.dryRun).toBe(false);
     expect(c.respectLeave).toBe(false);
     expect(c.userAgent).toContain("Mozilla/5.0");
-    expect(c.latitude).toBe("25.0781415");
-    expect(c.longitude).toBe("121.5703676");
+    expect(c.latitude).toBe("25.0500000");
+    expect(c.longitude).toBe("121.5500000");
     expect(c.gpsJitterMeters).toBe(12);
-    expect(c.punchesLocationId).toBe("0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1");
+    expect(c.punchesLocationId).toBe("00000000-0000-0000-0000-000000000000");
     expect(c.reactionBufferMin).toBe(10);
   });
 

@@ -1,11 +1,11 @@
 {
-  "_comment": "Real subset captured from probe/probe.mjs against the live account (redacted to representative days). Times are UTC ISO; Asia/Taipei = UTC+8.",
+  "_comment": "Synthetic representative days for tests. Times are UTC ISO; Asia/Taipei = UTC+8.",
   "data": {
     "schedulingStatus": 0,
     "calendars": [
       {
         "date": "2026-07-03T00:00:00Z",
-        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftId": "11111111-1111-1111-1111-111111111111",
         "shiftSchedule": {
           "workSlots": [
             { "type": 1, "startTime": "2026-07-03T00:13:00Z", "endTime": "2026-07-03T04:30:00Z", "tags": [] },
@@ -22,7 +22,7 @@
         "calendarEvent": null,
         "leaveSheets": [
           {
-            "leaveRequestFormId": "f0acd37c-6e35-4e13-81f0-121a897772e4",
+            "leaveRequestFormId": "22222222-2222-2222-2222-222222222222",
             "leaveStartDatetime": "2026-07-03T05:30:00Z",
             "leaveEndDatetime": "2026-07-03T07:30:00Z",
             "status": 50,
@@ -35,7 +35,7 @@
       },
       {
         "date": "2026-07-04T00:00:00Z",
-        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftId": "11111111-1111-1111-1111-111111111111",
         "shiftSchedule": {
           "workSlots": [],
           "shiftScheduleName": "常日班",
@@ -54,7 +54,7 @@
       },
       {
         "date": "2026-07-23T00:00:00Z",
-        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftId": "11111111-1111-1111-1111-111111111111",
         "shiftSchedule": {
           "workSlots": [
             { "type": 1, "startTime": "2026-07-23T00:51:00Z", "endTime": "2026-07-23T04:30:00Z", "tags": [] },
@@ -76,7 +76,7 @@
       },
       {
         "date": "2026-07-24T00:00:00Z",
-        "shiftId": "3a13535e-9f82-4deb-b8fa-0eae21cf901c",
+        "shiftId": "11111111-1111-1111-1111-111111111111",
         "shiftSchedule": {
           "workSlots": [
             { "type": 1, "startTime": "2026-07-24T01:30:00Z", "endTime": "2026-07-24T04:30:00Z", "tags": [] },

@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Cloudflare Worker (`apollo-auto-punch`) that auto-clocks in/out of Apollo XE
-(MayoHR) driven by the user's own shift calendar. It logs in, reads Mayo's
-schedule for the day, and punches via the GPS `/locate` endpoint. The GPS punch
-validates by **location, not IP**, which is what lets it run from Cloudflare's
-network — deliberately working around the employer's office-only IP control on
-the *web* punch. That trade-off is the user's decision; keep it documented in the
-README, and never log or echo the MayoHR password (it lives only in secrets).
+`apolloxe-mayohr-punch` clocks you in/out of Apollo XE (MayoHR) via the GPS
+`/locate` endpoint (validates by **location, not IP**). **The project is the punch
+tool: you drive it from the CLI (`npm run punch in|out`), and the core (`src/`) is
+Agent-callable.** An optional, thin **Cloudflare Worker** is just one consumer that
+runs the same core on a cron. The GPS punch deliberately works around the
+employer's office-only IP control on the *web* punch — that trade-off is the user's
+decision; keep it documented in the README, and never log or echo the MayoHR
+password (it lives only in secrets).
 
 ## Commands
 
@@ -98,10 +99,10 @@ scheduler's whole `Deps` (acquireSession/getDay/punch/store/now/rand). Tests inj
 fakes; production passes nothing. Preserve this when adding code — don't call
 `Math.random`/`fetch`/`new Date()` directly in testable logic.
 
-## Source of truth for the API
+## API contract
 
-`docs/api-facts.md` is the confirmed, reverse-engineered contract (auth, calendar,
-punch, error-status strings, GPS jitter math). It's derived from live testing, not
-guessed — update it in lockstep whenever API handling changes. The one unverified
-spot is `tripSheets` datetime field names in `calendar.ts` (moot while
-`RESPECT_LEAVE=false`).
+The MayoHR API is undocumented — everything here is reverse-engineered from live
+testing. The confirmed behavior lives in the code (`auth.ts`, `calendar.ts`,
+`punch.ts`) and its comments; treat those as the source of truth and keep them
+accurate whenever API handling changes. The one unverified spot is `tripSheets`
+datetime field names in `calendar.ts` (moot while `RESPECT_LEAVE=false`).

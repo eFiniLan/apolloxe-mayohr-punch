@@ -18,7 +18,7 @@ const TOKEN_RE_2 = /value="([^"]+)"[^>]*\sname="__RequestVerificationToken"/i;
  * Session carrying the accumulated Cookie jar (including
  * __ModuleSessionCookie) to send on all subsequent API calls.
  *
- * See docs/api-facts.md "Auth flow".
+ * (Login flow reverse-engineered from live testing.)
  */
 export async function login(cfg: Config, fetchImpl: typeof fetch = fetch): Promise<Session> {
   const jar = new Map<string, string>();

@@ -6,7 +6,7 @@ const session: any = { cookie: "__ModuleSessionCookie=ABC" };
 const cfg: any = { userAgent: "test-agent/1.0" };
 
 const SAMPLE: Location[] = [
-  { PunchesLocationId: "0e7d3f49-1fe5-49ef-aeb7-e54d4c434ab1", LocationCode: "L001", LocationName: "台北辦公室" },
+  { PunchesLocationId: "11111111-1111-1111-1111-111111111111", LocationCode: "L001", LocationName: "台北辦公室" },
   { PunchesLocationId: "00000000-0000-0000-0000-000000000000", LocationCode: "L9999", LocationName: "other" },
 ];
 
