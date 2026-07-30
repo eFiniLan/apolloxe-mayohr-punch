@@ -67,13 +67,7 @@ npm install
    預設已把 L001 台北辦公室（`0e7d3f49…`）與上面的台北座標配好，所以若你在台北打卡
    可略過此步。執行 `npm run config` 可查看目前生效的設定（密碼會遮蔽）。
 
-3. **（選用）設定部署用的 secrets** — 只有在你要跑 Worker 時才需要（與 `.dev.vars` 分開；切勿 commit）：
-   ```bash
-   npx wrangler secret put MAYO_USERNAME     # 你的登入 email
-   npx wrangler secret put MAYO_PASSWORD
-   ```
-
-4. **本機驗證：**
+3. **本機驗證：**
    ```bash
    npm test          # 單元測試
    npm run typecheck # tsc
@@ -106,26 +100,48 @@ npm install
 **throw**，把該次 cron 執行標記為失敗（顯示在 Cloudflare 主控台 / `wrangler tail`）—
 若想收到通知，可自行設定 Cloudflare Notification。
 
-## 安全上線
+## 部署 Worker（選用）
 
-`wrangler.toml` 預設 `DRY_RUN = "true"` — Worker 會跑完整流程（登入、行事曆、規劃）但
-**不會真的打卡**。
+Worker 是選用的 — 主體是 CLI。若你想要自動化，這是安全的做法。Cloudflare **免費方案
+就夠了**（cron 觸發器免費）。
 
-```bash
-npx wrangler deploy
-npx wrangler tail          # 觀察真實的早上／傍晚時段
-```
-確認規劃正確（DRY_RUN 執行會把打卡記錄印在 `wrangler tail`）。接著切成正式：
-
-```toml
-# wrangler.toml
-DRY_RUN = "false"
-```
-```bash
-npx wrangler deploy
-```
-透過 `wrangler tail` 觀察第一個真實上班日，確認 `wrangler tail` 顯示 Mayo 記錄的時間，
-並到 Apollo 檢查剛好一進一出。
+1. **登入** wrangler（會開瀏覽器）：
+   ```bash
+   npx wrangler login
+   ```
+2. **設定兩個 secrets**（互動式輸入；密碼不會進檔案或 argv）：
+   ```bash
+   npx wrangler secret put MAYO_USERNAME
+   npx wrangler secret put MAYO_PASSWORD
+   ```
+3. **先用 DRY-RUN 部署。** `wrangler.toml` 預設 `DRY_RUN = "true"`，會跑完整流程
+   （登入 → 行事曆 → 規劃）但**絕不真的打卡**：
+   ```bash
+   npx wrangler deploy
+   ```
+4. **觀察一個真實時段。** cron 時窗（台北）：**08:00–09:55**（上班）與
+   **18:00–19:55**（下班）— 對應 09:30–18:30 的班。
+   ```bash
+   npx wrangler tail
+   ```
+   略過原因的日誌會清楚顯示它在做什麼：
+   ```
+   apollo: 2026-07-31 09:00 — not time yet (09:00 < target 09:19)
+   apollo: clock-in 2026-07-31 — recorded … (DRY_RUN)
+   apollo: 2026-08-02 — skipped, not a workday
+   ```
+5. **切成正式** — 確認 DRY_RUN 的規劃無誤後，改旗標並重新部署：
+   ```toml
+   # wrangler.toml
+   DRY_RUN = "false"
+   ```
+   ```bash
+   npx wrangler deploy
+   ```
+   > ⚠️ 這就是玩真的了 — Worker 從此會無人看管地自動打卡。切換前，先讓 DRY_RUN 版本
+   > 跑一天並看 `tail`。
+6. **確認第一個真實上班日** — 透過 `wrangler tail` 觀察，確認顯示 Mayo 記錄的時間，
+   並到 Apollo 檢查剛好一進一出。
 
 > 因為無狀態，每次 cron 觸發都會重新登入＋讀行事曆（兩個時段合計約每天最多 ~48 次登入）。
 > 這是「不用 KV」的代價。若想減少，可把 `wrangler.toml` 的 `crons` 時窗縮到你班表附近。

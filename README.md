@@ -72,13 +72,7 @@ npm install
    above, so if you punch from Taipei you can skip this step. Run `npm run config
    list` to see the effective values (password masked).
 
-3. **(Optional) Set deployed secrets** — only if you run the Worker (separate from `.dev.vars`; never commit these):
-   ```bash
-   npx wrangler secret put MAYO_USERNAME     # your login email
-   npx wrangler secret put MAYO_PASSWORD
-   ```
-
-4. **Verify locally:**
+3. **Verify locally:**
    ```bash
    npm test          # unit tests
    npm run typecheck # tsc
@@ -114,26 +108,48 @@ Worker doesn't email; a failed punch **throws**, marking the cron invocation fai
 in the Cloudflare dashboard / `wrangler tail` — wire a Cloudflare Notification if
 you want to be alerted.
 
-## Go live safely
+## Deploy the Worker (optional)
 
-`wrangler.toml` ships with `DRY_RUN = "true"` — the Worker runs the whole pipeline
-(login, calendar, planning) but **never actually punches**.
+The Worker is optional — the CLI is the project. If you want hands-off automation,
+here's the safe path. A Cloudflare **free plan is enough** (cron triggers are free).
 
-```bash
-npx wrangler deploy
-npx wrangler tail          # watch a real morning/evening window
-```
-Confirm it plans correctly (a DRY_RUN run logs the punch in `wrangler tail`). Then flip it live:
-
-```toml
-# wrangler.toml
-DRY_RUN = "false"
-```
-```bash
-npx wrangler deploy
-```
-Watch the first real workday via `wrangler tail`, confirm `wrangler tail` shows
-Mayo's recorded time, and check Apollo shows exactly one in + one out.
+1. **Authenticate** wrangler (opens a browser):
+   ```bash
+   npx wrangler login
+   ```
+2. **Set the two secrets** (interactive prompt; your password never touches a file or argv):
+   ```bash
+   npx wrangler secret put MAYO_USERNAME
+   npx wrangler secret put MAYO_PASSWORD
+   ```
+3. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs
+   the whole flow (login → calendar → plan) but **never actually punches**:
+   ```bash
+   npx wrangler deploy
+   ```
+4. **Watch a real shift window.** Cron windows (Taipei): **08:00–09:55** (in) and
+   **18:00–19:55** (out) — matching a 09:30–18:30 shift.
+   ```bash
+   npx wrangler tail
+   ```
+   The skip-reason logs show exactly what it's doing:
+   ```
+   apollo: 2026-07-31 09:00 — not time yet (09:00 < target 09:19)
+   apollo: clock-in 2026-07-31 — recorded … (DRY_RUN)
+   apollo: 2026-08-02 — skipped, not a workday
+   ```
+5. **Go live** — only once the DRY_RUN plan looks right. Flip the flag and redeploy:
+   ```toml
+   # wrangler.toml
+   DRY_RUN = "false"
+   ```
+   ```bash
+   npx wrangler deploy
+   ```
+   > ⚠️ This is the real thing — the Worker now actually auto-punches, unattended.
+   > Sit on the DRY_RUN deploy for a day and read `tail` before you flip it.
+6. **Verify the first real workday** via `wrangler tail`, and check Apollo shows
+   exactly one in + one out.
 
 > Being stateless, each cron fire does a fresh login + calendar read (≈ up to ~48
 > logins/day across both windows). That's the trade for having no KV. If you want to
