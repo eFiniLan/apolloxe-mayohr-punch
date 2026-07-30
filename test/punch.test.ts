@@ -151,7 +151,7 @@ describe("punch", () => {
     });
   });
 
-  it("failure: generic error maps to failure outcome with detail", async () => {
+  it("failure: verbose detail includes the Title, the raw server body, and the sent location/coords", async () => {
     const f = mockFetch(
       { Meta: { HttpStatusCode: "400" }, Error: { Status: "SH_Whatever", Title: "nope" } },
       400,
@@ -159,7 +159,24 @@ describe("punch", () => {
 
     const result = await punch(session, cfg, "in", f as any);
 
-    expect(result).toEqual({ outcome: "failure", detail: "nope" });
+    expect(result.outcome).toBe("failure");
+    if (result.outcome === "failure") {
+      expect(result.detail).toContain("nope"); // the one-line Title
+      expect(result.detail).toContain("SH_Whatever"); // raw server body preserved (any extra fields survive too)
+      expect(result.detail).toContain(`PunchesLocationId=${cfg.punchesLocationId}`); // what we actually sent
+    }
+  });
+
+  it("failure: a non-JSON body surfaces the HTTP status and the raw text", async () => {
+    const f = vi.fn(async () => new Response("<html>504 Gateway Timeout</html>", { status: 504 }));
+
+    const result = await punch(session, cfg, "in", f as any);
+
+    expect(result.outcome).toBe("failure");
+    if (result.outcome === "failure") {
+      expect(result.detail).toContain("504");
+      expect(result.detail).toContain("Gateway Timeout");
+    }
   });
 
   it("dry run: returns synthetic success without calling fetch", async () => {

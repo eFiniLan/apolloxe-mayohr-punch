@@ -108,11 +108,14 @@ export async function punch(
     body: JSON.stringify(body),
   });
 
+  // Read the raw body once so a failure can surface the server's full response
+  // (MayoHR reports field-level validation detail beyond the one-line Title).
+  const raw = await res.text();
   let json: PunchResponse;
   try {
-    json = (await res.json()) as PunchResponse;
+    json = JSON.parse(raw) as PunchResponse;
   } catch {
-    return { outcome: "failure", detail: `HTTP ${res.status}` };
+    return { outcome: "failure", detail: `HTTP ${res.status}: ${raw.slice(0, 800)}` };
   }
 
   if (json.Meta?.HttpStatusCode === "200" && json.Data?.AttendanceHistoryId) {
@@ -132,5 +135,10 @@ export async function punch(
     return { outcome: "cooldown", detail: json.Error.Title ?? json.Error.Status };
   }
 
-  return { outcome: "failure", detail: json.Error?.Title ?? `HTTP ${res.status}` };
+  // Verbose on failure: the one-line Title (e.g. "You must fill in all the required
+  // fields") rarely names the field, so also include the raw server response and
+  // the location/coords we sent — the usual suspects. No secrets are in this body.
+  const title = json.Error?.Title ?? `HTTP ${res.status}`;
+  const sent = `sent PunchesLocationId=${cfg.punchesLocationId || "(empty)"} lat=${lat} lng=${lng}`;
+  return { outcome: "failure", detail: `${title} | server=${raw.slice(0, 800)} | ${sent}` };
 }
