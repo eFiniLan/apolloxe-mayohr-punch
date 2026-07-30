@@ -75,7 +75,7 @@ describe("punch", () => {
       Data: {
         AttendanceHistoryId: "AH",
         punchDate: "2026-07-23T11:07:11+00:00",
-        LocationName: "台北辦公室",
+        LocationName: "Sample Office",
       },
     });
 
@@ -85,7 +85,7 @@ describe("punch", () => {
       outcome: "success",
       attendanceHistoryId: "AH",
       punchDate: "2026-07-23T11:07:11+00:00",
-      locationName: "台北辦公室",
+      locationName: "Sample Office",
     });
 
     expect(f).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe("punch", () => {
   it("clock-out uses AttendanceType 2", async () => {
     const f = mockFetch({
       Meta: { HttpStatusCode: "200" },
-      Data: { AttendanceHistoryId: "AH2", punchDate: "2026-07-23T11:07:11+00:00", LocationName: "台北辦公室" },
+      Data: { AttendanceHistoryId: "AH2", punchDate: "2026-07-23T11:07:11+00:00", LocationName: "Sample Office" },
     });
 
     await punch(session, cfg, "out", f as any);

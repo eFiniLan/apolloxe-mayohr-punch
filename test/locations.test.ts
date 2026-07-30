@@ -6,7 +6,7 @@ const session: any = { cookie: "__ModuleSessionCookie=ABC" };
 const cfg: any = { userAgent: "test-agent/1.0" };
 
 const SAMPLE: Location[] = [
-  { PunchesLocationId: "11111111-1111-1111-1111-111111111111", LocationCode: "L001", LocationName: "台北辦公室" },
+  { PunchesLocationId: "11111111-1111-1111-1111-111111111111", LocationCode: "L001", LocationName: "Sample Office" },
   { PunchesLocationId: "00000000-0000-0000-0000-000000000000", LocationCode: "L9999", LocationName: "other" },
 ];
 
@@ -45,7 +45,7 @@ describe("formatLocations", () => {
     const out = formatLocations(SAMPLE);
     expect(out).toContain("PunchesLocationId");
     expect(out).toContain("L001");
-    expect(out).toContain("台北辦公室");
+    expect(out).toContain("Sample Office");
     expect(out).toContain("00000000-0000-0000-0000-000000000000");
     expect(out.split("\n").length).toBe(2 + SAMPLE.length); // header + divider + rows
   });
