@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { runScheduler, type Deps } from "../src/scheduler";
 import { savePlan, type Plan } from "../src/plan";
+import { CACHE_KEY } from "../src/calendar-cache";
 import type { PunchOutcome } from "../src/punch";
 
 const baseEnv = { MAYO_USERNAME: "e@x.com", MAYO_PASSWORD: "p" } as any;
@@ -112,6 +113,23 @@ describe("runScheduler — plan-driven", () => {
     expect(d.acquireSession).not.toHaveBeenCalled();
     expect(d.getDay).not.toHaveBeenCalled();
     expect(d.punch).not.toHaveBeenCalled();
+  });
+
+  it("builds the plan from a warm calendar cache without logging in", async () => {
+    const store = memStore();
+    const cache = {
+      generatedAt: "2026-07-24T00:00:00Z", // fresh vs now = 2026-07-24 09:10 TW
+      timezone: "Asia/Taipei",
+      months: ["2026-07", "2026-08"],
+      days: { [DATEKEY]: { workday: true, onLeave: false, shiftStart: "09:30", shiftEnd: "18:30", label: "x" } },
+    };
+    await store.write(CACHE_KEY, JSON.stringify(cache));
+    const d = deps(store, { now: tw(9, 10) }); // before inTarget → waiting
+    await runScheduler(baseEnv, d);
+    expect(d.getDay).not.toHaveBeenCalled(); // used the cache, not the session-backed getDay
+    expect(d.acquireSession).not.toHaveBeenCalled(); // never logged in
+    expect(d.punch).not.toHaveBeenCalled();
+    expect(JSON.parse(store._m.get(`plan:${DATEKEY}`)!)).toMatchObject({ workday: true, inTarget: "09:19", outTarget: "18:31" });
   });
 
   it("forwards the KV store to acquireSession and getDay when building + punching", async () => {

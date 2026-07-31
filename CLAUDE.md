@@ -52,7 +52,7 @@ deployed behaviour (an earlier duplicated login is what once hid an
 Per-cron-fire flow (`src/scheduler.ts runScheduler`, the heart of the Worker):
 
 ```
-read KV plan:<today> ─ missing? → login → read calendar → buildPlan (roll targets) → save
+read KV plan:<today> ─ missing? → peek cached calendar (no login; miss → login+fetch) → buildPlan → save
                      └ present? → no MayoHR call
 then decide(plan, now) → in | out | skip → (if punching) login → punch → set done-flag / throw
 ```
@@ -86,8 +86,10 @@ then decide(plan, now) → in | out | skip → (if punching) login → punch →
    gentle on Mayo. MayoHR is still the idempotency source of truth: a duplicate
    punch returns `already_done`, a too-soon one `cooldown`, both "already happened →
    stay quiet". KV also caches the session cookie (9-day TTL, validate-before-use)
-   and calendar via the shared `getDay`/`runPunch` core. Login is deferred — a
-   "waiting" fire never authenticates.
+   and calendar via the shared `getDay`/`runPunch` core. Login is deferred to an
+   actual punch: "waiting" fires never authenticate, and even the daily plan build
+   skips login when the calendar cache is warm (`peekDay`) — only a punch or a
+   monthly cache refresh logs in. So ~142 of ~144 fires/day touch no MayoHR API.
 
 2. **Direction and timing come from the plan, not a fixed window.** Both are
    derived from that day's actual shift and frozen into the plan — the random

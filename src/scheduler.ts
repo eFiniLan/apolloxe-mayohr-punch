@@ -4,6 +4,7 @@ import { nowParts } from "./time";
 import { acquireSession as realAcquireSession, getDay as realGetDay } from "./flow";
 import type { CacheStore } from "./cache-store";
 import { punch as realPunch, summarize } from "./punch";
+import { peekDay } from "./calendar-cache";
 import { buildPlan, decide, readPlan, savePlan } from "./plan";
 
 export interface Deps {
@@ -43,7 +44,10 @@ export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<
   // First fire of the day builds the plan from the calendar; later fires reuse it.
   let plan = await readPlan(store, dateKey);
   if (!plan) {
-    const { info } = await d.getDay(await getSession(), cfg, store, dateKey);
+    // Prefer the warm calendar cache — no login. Authenticate (and refresh the
+    // month) only on a cache miss, so building the plan is network-free most days.
+    let info = await peekDay(store, dateKey, { now: () => now });
+    if (!info) ({ info } = await d.getDay(await getSession(), cfg, store, dateKey));
     plan = buildPlan(info, cfg, rand); // throws on a workday with no shift time
     await savePlan(store, dateKey, plan);
   }

@@ -117,6 +117,29 @@ function serialize(file: CacheFile): string {
 }
 
 /**
+ * Cache-only read: today's DayInfo iff the cache is present, fresh, and covers
+ * today — else null. No session, no network. Lets a caller (the Worker's daily
+ * plan build) use a warm calendar without logging in, authenticating only on a
+ * miss. `cachedDayInfo` is the read-or-refresh version that needs a session.
+ */
+export async function peekDay(
+  store: CacheStore,
+  dateKey: string,
+  opts: { now?: () => Date } = {},
+): Promise<DayInfo | null> {
+  const now = opts.now ?? (() => new Date());
+  try {
+    const raw = await store.read(CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as CacheFile;
+    if (isFresh(cached, dateKey, now())) return cacheDayToInfo(cached.days[dateKey]);
+  } catch {
+    // unreadable / corrupt → treat as a miss
+  }
+  return null;
+}
+
+/**
  * Read today's DayInfo from the store, refreshing (fetch current + next month,
  * rewrite) when the cache is missing, corrupt, stale (>7d), or lacks today. A
  * failed write is logged but non-fatal — a cache problem must never block a punch.
