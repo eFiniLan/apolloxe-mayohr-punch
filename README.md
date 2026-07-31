@@ -13,33 +13,29 @@
 
 ## 運作方式
 
-手動執行時，CLI 就是「登入 → 讀班表 → 打卡」即時完成。自動執行時，Worker 改用一份存在
-KV 的「當日計畫」：
+手動執行時，CLI 就是「登入 → 讀班表 → 打卡」即時完成。自動執行時，Worker 是一個
+**Durable Object**，用它的 `alarm()` 當精準計時器，只在幾個關鍵時刻醒來：
 
 ```
-當天第一次觸發 → 讀行事曆 → 上班日？ ──否─→ 存一份「略過」計畫（週末／假日）
-                             │是
-                             ▼
-              建立當日計畫（存入 KV）：
-                上班打卡 = 班表開始 − (緩衝 + 隨機提早)   → 一律「提早」
-                下班打卡 = 班表結束 + 隨機延後             → 一律「延後」
-              （隨機偏移只擲一次，所以打卡時間穩定且像真人）
+🌙 00:05  讀當天班表                    ← MayoHR 第 1 次
+          擲出隨機打卡時間，例如 進 09:13:47、出 18:41:12
+          （偏移「連秒」只擲一次，然後凍結）
+          存起來、設定 alarm、睡覺…
 
-每次觸發 → 從 KV 讀當日計畫（不打 MayoHR）→ 到打卡時間了嗎？
-                                    │是            │否 → 等待
-                                    ▼
-           打卡（辦公室 GPS 座標 + 抖動，以 AttendanceHistoryId 驗證），
-           並在計畫裡標記完成，避免重複打卡。
+⏰ 09:13:47  醒來 → 打卡進              ← MayoHR 第 2 次   → 設 alarm 給下班
+⏰ 18:41:12  醒來 → 打卡出              ← MayoHR 第 3 次   → 設 alarm 給明天
 ```
 
-- **以 KV 儲存的當日計畫。** cron 整天每 10 分鐘觸發一次；當天第一次觸發會讀班表並把
-  「計畫」寫進 KV，之後每次觸發只讀計畫（不登入），到了目標時間才打卡。因為計畫來自
-  *實際的*行事曆，所以**任何班表都能運作** — 每天起訖不同也行，不用維護固定時窗。（需要 KV。）
+- **一個 Durable Object，用 alarm 驅動。** 不輪詢、不用 KV、不用 Workflow。DO 自己的
+  儲存存 cookie、行事曆與當日計畫；alarm 一天叫醒它 **約 3 次** — 剛好在每個打卡時間。
+  時間取自*實際*行事曆，所以**任何班表都能運作**；而且 alarm 在精準時刻觸發，隨機打卡
+  時間可精準到**秒**，看起來像真人、不會落在死板的整點格線上。
+- **對 MayoHR 很溫和 — 一天約打 3 次**（行事曆、進、出）；登入沿用儲存的 cookie。每天一次的
+  cron 只是備援，必要時重新替 DO 設定 alarm。
 - **冪等（Idempotent）。** MayoHR 仍是唯一真實來源：重複打卡回 `already_done` 或
   `cooldown`，兩者都當「已完成」，所以不會重複打卡。
-- **反應緩衝（Reaction buffer）：** 上班打卡會在班表開始前至少 `REACTION_BUFFER_MIN`
-  分鐘嘗試，這樣萬一真的失敗，你會在還有時間手動打卡時就發現（一次失敗的執行／
-  exit code）。
+- **反應緩衝（Reaction buffer）：** 上班打卡目標在班表開始前至少 `REACTION_BUFFER_MIN`
+  分鐘，這樣萬一真的失敗，你會在還有時間手動打卡時就發現（一次失敗的執行）。
 
 > **注意。** 貴公司對*網頁版*打卡有 IP 限制（僅限辦公室／VPN）。本工具改用 *GPS*
 > 打卡，從雲端伺服器送出你的辦公室座標，刻意繞過「僅限辦公室」的管控。執行前請先
@@ -124,34 +120,30 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler login
    ```
-2. **建立 KV namespace**（必要 — 排程器把當日計畫、cookie／行事曆快取存在這裡），
-   並把印出的 id 貼進 `wrangler.toml`：
-   ```bash
-   npx wrangler kv namespace create APOLLO_KV
-   # → 把 id 複製到 wrangler.toml 的 [[kv_namespaces]] 區塊
-   ```
-3. **設定密碼 secret**（唯一的 secret — `MAYO_USERNAME` 放在 `wrangler.toml`；
+2. **設定密碼 secret**（唯一的 secret — `MAYO_USERNAME` 放在 `wrangler.toml`；
    密碼不會進檔案或 argv）：
    ```bash
    npx wrangler secret put MAYO_PASSWORD
    ```
-4. **先用 DRY-RUN 部署。** `wrangler.toml` 預設 `DRY_RUN = "true"`，會跑完整流程
+   （不用建立 KV — Durable Object 與其儲存會在部署時，由 `[[migrations]]` 區塊自動建立。）
+3. **先用 DRY-RUN 部署。** `wrangler.toml` 預設 `DRY_RUN = "true"`，會跑完整流程
    （行事曆 → 計畫 → 判斷）但**絕不真的打卡**：
    ```bash
    npx wrangler deploy
    ```
-5. **觀察一個上班日。** cron 整天每 10 分鐘觸發一次 — 關鍵時刻是你的上／下班目標時間：
+   > 它會在**下一個台北 00:05**開始運作（cron 備援會規劃當天並設定 alarm）。想立刻啟動，
+   > 可到 Cloudflare 主控台手動觸發一次 scheduled 事件，或直接等今晚。
+4. **觀察一個上班日。** DO 一天醒來約 3 次 — 規劃、進、出。在那些時間點 tail：
    ```bash
    npx wrangler tail
    ```
-   日誌會清楚顯示它在做什麼（時間為台北）：
+   日誌會清楚顯示它在做什麼（時間為台北，精準到秒）：
    ```
-   apollo: 2026-07-31 08:40 — waiting (in 09:14, out 18:37)
+   apollo: 2026-07-31 — waiting (in 09:13:47, out 18:41:12)
    apollo: clock-in 2026-07-31 — recorded … (DRY_RUN)
-   apollo: 2026-07-31 13:00 — waiting (in 09:14 done, out 18:37)
    apollo: 2026-08-02 — skipped, not a workday
    ```
-6. **切成正式** — 確認 DRY_RUN 的規劃無誤後，改旗標並重新部署：
+5. **切成正式** — 確認 DRY_RUN 的規劃無誤後，改旗標並重新部署：
    ```toml
    # wrangler.toml
    DRY_RUN = "false"
@@ -161,12 +153,11 @@ cp wrangler.toml.example wrangler.toml
    ```
    > ⚠️ 這就是玩真的了 — Worker 從此會無人看管地自動打卡。切換前，先讓 DRY_RUN 版本
    > 跑一天並看 `tail`。
-7. **確認第一個真實上班日** — 透過 `wrangler tail` 觀察，確認顯示 Mayo 記錄的時間，
+6. **確認第一個真實上班日** — 透過 `wrangler tail` 觀察，確認顯示 Mayo 記錄的時間，
    並到 Apollo 檢查剛好一進一出。
 
-> **為什麼還是很省。** 每天 ~144 次觸發聽起來很多，但只有當天*第一次*會讀行事曆，也只有
-> 兩次真的打卡 — 其餘每次都只是一個 KV 讀取、完全不登入。遠在 Cloudflare 免費額度
-> （每天 10 萬次）之內，對 MayoHR 也很溫和。
+> **資源用量。** DO 一天醒來約 3 次（規劃 + 兩次打卡），其餘時間在睡 — 長時間的等待不花錢。
+> 只用到免費額度的極小一部分（Durable Objects 每天 10 萬次請求免費），對 MayoHR 也只碰約 3 次。
 
 ### Worker 常見陷阱
 
@@ -199,8 +190,9 @@ cp wrangler.toml.example wrangler.toml
 - `src/` — `config`、`auth`、`calendar`、`punch`、`locations`、`time`、
   `calendar-cache`、`session-cache`（使用前先驗證的 cookie 快取）、
   `cache-store`（共用的 `CacheStore`）、`flow`（`runPunch`/`acquireSession`/`getDay` —
-  可重用核心）、`kv-store`（給 Worker 的 KV `CacheStore`）、`plan`（Worker 的當日 KV
-  計畫：目標時間＋完成旗標）、`scheduler` + `index`（Worker）。
+  可重用核心）、`day-machine`（純函式的當日計畫：`buildDayPlan`／`dueAction`／`nextAlarm`）、
+  `do-store`（架在 Durable Object 儲存上的 `CacheStore`）、`punch-day`（`PunchDay` DO
+  ＋可測試的 `runTick`）＋ `index`（Worker）。
 - `scripts/` — 本機 CLI 工具，建構在與 Worker **相同的 `src/` 模組**上（所以不會與部署
   行為分歧）：`punch-now.ts`（手動打卡進／出）、`config-cli.ts`（`npm run config` /
   `config set` — 寫入 `.dev.vars`，`set location` 可列出地點）、`dev-vars.ts`（純粹的

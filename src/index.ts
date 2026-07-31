@@ -1,21 +1,24 @@
-import { runScheduler } from "./scheduler";
-import { kvStore } from "./kv-store";
+import { PunchDay } from "./punch-day";
 
-// APOLLO_KV (a KV namespace) is REQUIRED: the scheduler stores its per-day plan
-// (randomized punch targets + done-flags) and caches the login cookie + calendar
-// there. Config comes from [vars] + secrets, read via the string index signature.
+// A single Durable Object ("PunchDay") owns the schedule: its SQLite storage holds
+// the cookie / calendar / today's plan, and its alarm() is a precise timer. The
+// cron here is only a daily BACKSTOP that pokes the DO to make sure today is
+// planned + armed (the DO otherwise re-arms itself). No KV needed.
 export interface Env {
-  APOLLO_KV?: KVNamespace;
+  PUNCH_DAY: DurableObjectNamespace<PunchDay>;
   [key: string]: unknown;
 }
 
+export { PunchDay };
+
 export default {
-  // Awaited (not waitUntil) so a thrown failure marks the cron invocation failed
-  // — it shows up in `wrangler tail` and the dashboard instead of looking green.
+  // Awaited (not waitUntil) so a thrown failure marks the invocation failed —
+  // visible in `wrangler tail` / the dashboard instead of looking green.
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext) {
-    if (!env.APOLLO_KV) {
-      throw new Error("APOLLO_KV is not bound — create a KV namespace and bind it in wrangler.toml");
+    if (!env.PUNCH_DAY) {
+      throw new Error("PUNCH_DAY is not bound — add the durable_objects binding + migration in wrangler.toml");
     }
-    await runScheduler(env, { store: kvStore(env.APOLLO_KV) });
+    const stub = env.PUNCH_DAY.get(env.PUNCH_DAY.idFromName("singleton"));
+    await stub.ensure();
   },
 };

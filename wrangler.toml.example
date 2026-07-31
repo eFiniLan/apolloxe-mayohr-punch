@@ -7,22 +7,23 @@ compatibility_date = "2024-12-30"
 # out of the repo. MAYO_PASSWORD is never here — set it with:
 #   npx wrangler secret put MAYO_PASSWORD
 
-# REQUIRED. The scheduler stores its per-day plan (randomized punch targets +
-# done-flags) here, and also caches the login cookie + calendar across fires.
-# Create the namespace once, then paste its id below:
-#   npx wrangler kv namespace create APOLLO_KV
-[[kv_namespaces]]
-binding = "APOLLO_KV"
-id = "<paste-your-kv-namespace-id>"
+# A single Durable Object ("PunchDay") owns the schedule. Its SQLite storage holds
+# the login cookie, calendar cache, and today's plan; its alarm() is a precise
+# timer that fires exactly at each randomized punch time. No KV / Workflow needed.
+[[durable_objects.bindings]]
+name = "PUNCH_DAY"
+class_name = "PunchDay"
 
-# Fire every 10 min, all day, every day. The first fire of the day reads that
-# day's shift into a KV "plan" (randomized clock-in/out targets); every later fire
-# just reads the plan and punches when a target arrives. Timing AND direction come
-# from the calendar, so ANY single-day schedule works — no fixed window to keep in
-# sync with your shift. Non-workdays self-skip after one cheap check.
-# (Keep */10 in sync with CRON_STEP_MIN in src/plan.ts.)
+# SQLite-backed DO (required for the free plan + alarms).
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PunchDay"]
+
+# Cron is only a daily BACKSTOP (UTC): 16:05 UTC = 00:05 Taipei. It pokes the DO to
+# make sure today is planned + armed; the DO otherwise re-arms its own alarm
+# (in → out → tomorrow), so the real work is alarm-driven, not cron-driven.
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["5 16 * * *"]
 
 # Config. Optional tuning vars (jitter, early/late minutes, reaction buffer,
 # RESPECT_LEAVE) have sane code defaults — see the README's Configuration table to

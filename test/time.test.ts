@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nowParts, addMinutes, randInt, isValidDateKey } from "../src/time";
+import { nowParts, addMinutes, randInt, isValidDateKey, zonedTimeToEpoch, nextDateKey, hhmmss } from "../src/time";
 
 describe("isValidDateKey", () => {
   it("accepts real dates (incl. a leap day)", () => {
@@ -47,5 +47,33 @@ describe("randInt", () => {
   });
   it("returns max when rand() is just under 1", () => {
     expect(randInt(1, 15, () => 0.999)).toBe(15);
+  });
+});
+
+describe("zonedTimeToEpoch (Asia/Taipei = UTC+8, no DST)", () => {
+  it("maps a Taipei wall-clock to the right UTC instant", () => {
+    // 09:30 Taipei on 2026-07-24 = 01:30 UTC
+    expect(zonedTimeToEpoch("2026-07-24", "09:30", "Asia/Taipei")).toBe(Date.UTC(2026, 6, 24, 1, 30, 0));
+  });
+  it("includes seconds", () => {
+    expect(zonedTimeToEpoch("2026-07-24", "09:30", "Asia/Taipei", 47)).toBe(Date.UTC(2026, 6, 24, 1, 30, 47));
+  });
+  it("handles the previous-UTC-day case (00:05 Taipei)", () => {
+    // 00:05 Taipei on 2026-07-25 = 16:05 UTC on 2026-07-24
+    expect(zonedTimeToEpoch("2026-07-25", "00:05", "Asia/Taipei")).toBe(Date.UTC(2026, 6, 24, 16, 5, 0));
+  });
+});
+
+describe("nextDateKey", () => {
+  it("advances one day, rolling months", () => {
+    expect(nextDateKey("2026-07-24")).toBe("2026-07-25");
+    expect(nextDateKey("2026-07-31")).toBe("2026-08-01");
+    expect(nextDateKey("2026-12-31")).toBe("2027-01-01");
+  });
+});
+
+describe("hhmmss", () => {
+  it("formats an instant as HH:MM:SS in the given tz", () => {
+    expect(hhmmss(Date.UTC(2026, 6, 24, 1, 19, 5), "Asia/Taipei")).toBe("09:19:05");
   });
 });

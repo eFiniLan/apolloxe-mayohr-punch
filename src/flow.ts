@@ -68,7 +68,7 @@ interface RunPunchDeps {
 
 /**
  * Today's DayInfo — cached when a store is given (auto-refresh on stale/missing),
- * live otherwise. Shared by runPunch and the Worker scheduler.
+ * live otherwise. Shared by runPunch and the Worker (punch-day).
  */
 export async function getDay(
   session: Session,

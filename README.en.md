@@ -16,34 +16,32 @@ run in Cloudflare.
 ## How it works
 
 The core flow is **login → read today's calendar → punch**. Run it by hand and the
-CLI does exactly that, on command. Run it automatically and the optional Worker
-wraps that same core with cron timing:
+CLI does exactly that, on command. Run it automatically and the optional Worker — a
+single **Durable Object** whose `alarm()` is a precise timer — sleeps between the
+few moments that matter:
 
 ```
-first fire of the day → read calendar → workday? ──no─→ save "skip" plan (weekend/holiday)
-                                            │yes
-                                            ▼
-                    build plan for today (stored in KV):
-                      clock in  = shiftStart − (buffer + random early)   → always EARLY
-                      clock out = shiftEnd   + random late               → always LATE
-                    (random offsets rolled ONCE, so the punch time is stable + human)
+🌙 00:05  read today's shift            ← MayoHR call #1
+          roll random punch times, e.g. in 09:13:47, out 18:41:12
+          (offsets — down to the second — rolled ONCE, then frozen)
+          store them, set an alarm, sleep…
 
-every fire → read today's plan from KV (no MayoHR call) → is a target due?
-                                          │yes            │no → wait
-                                          ▼
-             punch (GPS office coords + jitter, verified by AttendanceHistoryId),
-             mark it done in the plan so it won't punch twice.
+⏰ 09:13:47  wake → punch in            ← MayoHR call #2   → set alarm for out
+⏰ 18:41:12  wake → punch out           ← MayoHR call #3   → set alarm for tomorrow
 ```
 
-- **KV-backed daily plan.** The cron fires every 10 min all day; the first fire
-  reads that day's shift and writes a *plan* to KV, and later fires just read the
-  plan — no login — punching only when a target time arrives. Because the plan
-  comes from the *actual* calendar, **any schedule works** — different start/end
-  every day, no fixed window to keep in sync. (KV is required.)
+- **One Durable Object, alarm-driven.** No polling, no KV, no Workflow. The DO's own
+  storage holds the cookie, calendar, and today's plan; its alarm wakes it **~3×/day**
+  — exactly at each punch time. Because the times come from the *actual* calendar,
+  **any schedule works** (different start/end every day), and because the alarm fires
+  at the exact instant, the random punch time is real down to the **second** (looks
+  human, not on a robotic grid).
+- **Gentle on MayoHR — hit ~3×/day** (calendar, in, out); login is reused from the
+  stored cookie. A once-a-day cron is only a backstop that re-arms the DO if needed.
 - **Idempotent.** MayoHR is still the source of truth: a second punch returns
   `already_done` or `cooldown`, both treated as "done", so nothing double-punches.
-- **Reaction buffer:** clock-in is attempted `≥ REACTION_BUFFER_MIN` before your
-  shift, so if it genuinely fails you find out (a failed run / exit code) with time to punch manually.
+- **Reaction buffer:** clock-in targets `≥ REACTION_BUFFER_MIN` before your shift, so
+  if it genuinely fails you find out (a failed run) with time to punch manually.
 
 > **Note.** Your company IP-restricts the *web* punch (office/VPN only). This uses
 > the *GPS* punch, sending your office coordinates from a cloud server. That
@@ -133,35 +131,32 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler login
    ```
-2. **Create the KV namespace** (required — the scheduler stores its daily plan and
-   caches the cookie/calendar there) and paste the printed id into `wrangler.toml`:
-   ```bash
-   npx wrangler kv namespace create APOLLO_KV
-   # → copy the id into the [[kv_namespaces]] block in wrangler.toml
-   ```
-3. **Set the password secret** (the only secret — `MAYO_USERNAME` lives in
+2. **Set the password secret** (the only secret — `MAYO_USERNAME` lives in
    `wrangler.toml`; the password never touches a file or argv):
    ```bash
    npx wrangler secret put MAYO_PASSWORD
    ```
-4. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs
+   (No KV to create — the Durable Object + its storage are set up automatically by
+   the `[[migrations]]` block on deploy.)
+3. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs
    the whole flow (calendar → plan → decision) but **never actually punches**:
    ```bash
    npx wrangler deploy
    ```
-5. **Watch a workday.** The cron fires every 10 min, all day — the interesting
-   moments are your clock-in and clock-out targets:
+   > It starts working at the **next 00:05 Taipei** (the cron backstop plans the day
+   > and arms the alarm). To kick it off immediately, trigger the scheduled event
+   > once from the Cloudflare dashboard, or just wait for tonight.
+4. **Watch a workday.** The DO wakes ~3× — plan, in, out. Tail it around those times:
    ```bash
    npx wrangler tail
    ```
-   The logs show exactly what it's doing (times are Taipei):
+   The logs show exactly what it's doing (times are Taipei, to the second):
    ```
-   apollo: 2026-07-31 08:40 — waiting (in 09:14, out 18:37)
+   apollo: 2026-07-31 — waiting (in 09:13:47, out 18:41:12)
    apollo: clock-in 2026-07-31 — recorded … (DRY_RUN)
-   apollo: 2026-07-31 13:00 — waiting (in 09:14 done, out 18:37)
    apollo: 2026-08-02 — skipped, not a workday
    ```
-6. **Go live** — only once the DRY_RUN plan looks right. Flip the flag and redeploy:
+5. **Go live** — only once the DRY_RUN plan looks right. Flip the flag and redeploy:
    ```toml
    # wrangler.toml
    DRY_RUN = "false"
@@ -171,13 +166,12 @@ cp wrangler.toml.example wrangler.toml
    ```
    > ⚠️ This is the real thing — the Worker now actually auto-punches, unattended.
    > Sit on the DRY_RUN deploy for a day and read `tail` before you flip it.
-7. **Verify the first real workday** via `wrangler tail`, and check Apollo shows
+6. **Verify the first real workday** via `wrangler tail`, and check Apollo shows
    exactly one in + one out.
 
-> **How it stays cheap.** ~144 fires/day sounds like a lot, but only the *first*
-> fire of the day reads the calendar, and only two fires actually punch — every
-> other fire is a single KV read with no login. Well within Cloudflare's free
-> 100k/day, and gentle on MayoHR.
+> **Footprint.** The DO wakes ~3×/day (plan + 2 punches) and sleeps in between — the
+> long waits cost nothing. It uses a tiny fraction of the free tier (Durable Objects
+> allow 100k requests/day free), and touches MayoHR only ~3× a day.
 
 ### Worker gotchas
 
@@ -213,9 +207,10 @@ cp wrangler.toml.example wrangler.toml
 
 - `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `time`,
   `calendar-cache`, `session-cache` (validate-before-use cookie cache),
-  `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession`/`getDay` — the reusable core), `kv-store`
-  (KV `CacheStore` for the Worker), `plan` (the Worker's per-day KV plan: targets + done-flags),
-  `scheduler` + `index` (the Worker).
+  `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession`/`getDay` — the reusable core),
+  `day-machine` (pure per-day plan: `buildDayPlan`/`dueAction`/`nextAlarm`),
+  `do-store` (`CacheStore` over the Durable Object's storage), `punch-day` (the
+  `PunchDay` DO + its testable `runTick`) + `index` (the Worker).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
   clock in/out), `calendar-cli.ts` (`npm run calendar` — read-only workday/shift

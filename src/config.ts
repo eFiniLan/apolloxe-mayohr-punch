@@ -13,7 +13,7 @@ export interface Config {
   longitude: string;
   gpsJitterMeters: number;
   punchesLocationId: string; // office punch location (from locations/EnableList)
-  // Jitter magnitudes (positive, min clamped ≥1). The scheduler computes:
+  // Jitter magnitudes (positive, min clamped ≥1). buildDayPlan (day-machine.ts) computes:
   //   clock-IN  = shiftStart − (reactionBufferMin + random(earlyIn))  → always EARLY
   //   clock-OUT = shiftEnd   + random(lateOut)                        → always LATE
   earlyIn: { min: number; max: number };
