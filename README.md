@@ -109,8 +109,9 @@ Worker 與 CLI 共用（`npm run config set …` 會寫入，或手動編輯）�
 本機 `.dev.vars` ＋ 部署用 `wrangler secret put`。除了 `MAYO_USERNAME` ＋ `MAYO_PASSWORD`
 之外皆為選用；只有密碼會是 `wrangler secret`。
 
-> **從舊版升級**（設定原本在 `.dev.vars`）？執行一次 `npm run config migrate` —
-> 它會把非機密的設定搬進 `wrangler.toml [vars]`，`.dev.vars` 只留下密碼。
+> **從舊版升級**（設定原本在 `.dev.vars`）？不用手動處理 — 你執行的第一個 CLI 指令會
+> **自動搬移**：把非機密設定移進 `wrangler.toml [vars]`（`.dev.vars` 只留下密碼），並印出
+> 搬了哪些。也可用 `npm run config migrate` 隨時手動執行。
 
 | 變數 | 預設 | 意義 |
 |-----|---------|---------|

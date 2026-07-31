@@ -7,11 +7,12 @@
 // (shared with the deployed Worker); `.dev.vars` holds the password (and any local
 // overrides). Both are gitignored; `.dev.vars` is also what `wrangler dev` reads.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadConfig, type Config } from "../src/config";
-import { parseTomlVars } from "./wrangler-vars";
+import { parseTomlVars, upsertTomlVars } from "./wrangler-vars";
+import { removeEnvVars } from "./dev-vars";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -56,8 +57,50 @@ export function readWranglerVars(): Record<string, string> {
   }
 }
 
-/** Merged env for a CLI run: env > .dev.vars > wrangler.toml [vars]. */
+/**
+ * Move any non-secret keys out of .dev.vars into wrangler.toml [vars] (the single
+ * source), leaving only the password. Returns the moved keys ([] = nothing to do).
+ * Idempotent. The password never moves — wrangler.toml [vars] is uploaded plaintext.
+ */
+export function migrateDevVars(): string[] {
+  const moved = Object.fromEntries(Object.entries(readDevVars()).filter(([k]) => k !== "MAYO_PASSWORD"));
+  const keys = Object.keys(moved);
+  if (keys.length === 0) return [];
+  const read = (p: string) => {
+    try {
+      return readFileSync(p, "utf8");
+    } catch {
+      return "";
+    }
+  };
+  writeFileSync(WRANGLER_PATH, upsertTomlVars(read(WRANGLER_PATH), moved));
+  writeFileSync(DEV_VARS_PATH, removeEnvVars(read(DEV_VARS_PATH), keys), { mode: 0o600 });
+  chmodSync(DEV_VARS_PATH, 0o600);
+  return keys;
+}
+
+let migrated = false;
+/** Run migrateDevVars once per process, announcing (on stderr) what moved. */
+function autoMigrate(): void {
+  if (migrated) return;
+  migrated = true;
+  let keys: string[] = [];
+  try {
+    keys = migrateDevVars();
+  } catch {
+    return; // a migration hiccup must never block a punch
+  }
+  if (keys.length) {
+    console.error(`apollo: moved ${keys.join(", ")} from .dev.vars → wrangler.toml [vars] (single source)`);
+  }
+}
+
+/**
+ * Merged env for a CLI run: env > .dev.vars > wrangler.toml [vars]. First auto-
+ * migrates any stray non-secret keys out of .dev.vars so the two never diverge.
+ */
 export function mergedEnv(): Record<string, string> {
+  autoMigrate();
   return {
     ...readWranglerVars(),
     ...readDevVars(),

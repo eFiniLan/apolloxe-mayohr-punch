@@ -37,8 +37,9 @@ punch is intended.
 - **Non-secret config = `wrangler.toml [vars]`, single source** shared by the CLI
   and the deployed Worker (username, location, coords, timezone, toggles, DRY_RUN…).
   The CLI reads it via `scripts/wrangler-vars.ts parseTomlVars` (`scripts/_env.ts`);
-  `config set` (except password) writes it via `upsertTomlVars`. Don't reintroduce a
-  second non-secret store — the point is one file.
+  `config set` (except password) writes it via `upsertTomlVars`. Any CLI run
+  auto-migrates stray non-secret keys out of `.dev.vars` (`_env.ts migrateDevVars`,
+  run once per process in `mergedEnv`). Don't reintroduce a second non-secret store.
 - **Password only** lives in the gitignored `.dev.vars` (local, mode 0600; also read
   by `wrangler dev`) and, for the deployed Worker, `wrangler secret put MAYO_PASSWORD`.
   It must never go in `wrangler.toml` — `wrangler deploy` uploads `[vars]` as plaintext.

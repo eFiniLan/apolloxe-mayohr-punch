@@ -122,9 +122,10 @@ writes it, or hand-edit). Only the password is separate: `.dev.vars` locally +
 `wrangler secret put` for the Worker. All optional except `MAYO_USERNAME` +
 `MAYO_PASSWORD`; only the password is ever a `wrangler secret`.
 
-> **Upgrading from an older version** (config in `.dev.vars`)? Run
-> `npm run config migrate` once — it moves the non-secret keys into
-> `wrangler.toml [vars]` and leaves only the password in `.dev.vars`.
+> **Upgrading from an older version** (config in `.dev.vars`)? Nothing to do — the
+> first CLI command you run **auto-migrates** the non-secret keys into
+> `wrangler.toml [vars]` (leaving only the password in `.dev.vars`) and prints what
+> it moved. `npm run config migrate` does the same on demand.
 
 | Var | Default | Meaning |
 |-----|---------|---------|

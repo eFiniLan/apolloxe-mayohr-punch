@@ -12,9 +12,9 @@
 // deployed Worker); only the password goes to .dev.vars (mode 0600). No validation.
 import { readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
 import * as readline from "node:readline";
-import { buildEntries, upsertEnvVars, removeEnvVars, FIELDS, BOOLEAN_FIELDS, normalizeBool } from "./dev-vars";
+import { buildEntries, upsertEnvVars, FIELDS, BOOLEAN_FIELDS, normalizeBool } from "./dev-vars";
 import { upsertTomlVars } from "./wrangler-vars";
-import { DEV_VARS_PATH, WRANGLER_PATH, mergedEnv, readDevVars, localConfig } from "./_env";
+import { DEV_VARS_PATH, WRANGLER_PATH, mergedEnv, migrateDevVars, localConfig } from "./_env";
 import { loadConfig } from "../src/config";
 import { acquireSession } from "../src/flow";
 import { fileStore } from "./cache-fs";
@@ -134,18 +134,12 @@ async function cmdSet(field: string, values: string[]): Promise<void> {
  * Idempotent — a no-op once .dev.vars holds only the password.
  */
 async function cmdMigrate(): Promise<void> {
-  const moved = Object.fromEntries(Object.entries(readDevVars()).filter(([k]) => k !== "MAYO_PASSWORD"));
-  const keys = Object.keys(moved);
+  const keys = migrateDevVars();
   if (keys.length === 0) {
     console.log("Nothing to migrate — .dev.vars already holds only the password (or is empty).");
     return;
   }
-  writeFileSync(WRANGLER_PATH, upsertTomlVars(readOr(WRANGLER_PATH), moved));
-  writeFileSync(DEV_VARS_PATH, removeEnvVars(readOr(DEV_VARS_PATH), keys), { mode: 0o600 });
-  chmodSync(DEV_VARS_PATH, 0o600);
-  console.log(`✓ Moved ${keys.join(", ")}`);
-  console.log(`    from ${DEV_VARS_PATH}`);
-  console.log(`    →    ${WRANGLER_PATH} [vars]`);
+  console.log(`✓ Moved ${keys.join(", ")} from .dev.vars → ${WRANGLER_PATH} [vars].`);
   console.log("  .dev.vars now holds only the password.");
 }
 
@@ -164,12 +158,6 @@ function cmdList(): void {
   console.log(`  session  : ${cfg.sessionCache ? "on" : "off"}`);
   console.log(`\n  non-secret → ${WRANGLER_PATH}`);
   console.log(`  password   → ${DEV_VARS_PATH}`);
-
-  const stray = Object.keys(readDevVars()).filter((k) => k !== "MAYO_PASSWORD");
-  if (stray.length) {
-    console.log(`\n⚠️  ${stray.join(", ")} still in .dev.vars (overriding wrangler.toml for the CLI only).`);
-    console.log("   Run `npm run config migrate` to move them into wrangler.toml [vars].");
-  }
 }
 
 const [cmd, field, ...values] = process.argv.slice(2);
