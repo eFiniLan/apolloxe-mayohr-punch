@@ -36,3 +36,15 @@ MAYO_USERNAME = "you@company.com"
 PUNCH_LATITUDE = "25.0500000"                              # your office's real coordinates
 PUNCH_LONGITUDE = "121.5500000"
 PUNCHES_LOCATION_ID = "00000000-0000-0000-0000-000000000000"  # `npm run config set location` to find it
+
+# Timing knobs (optional — shown at their code defaults; uncomment to change).
+# Clock-in lands BEFORE shiftStart, clock-out AFTER shiftEnd, so "in early / out
+# late" (and your 9h+ span) is guaranteed by construction — nothing is computed.
+#   before shiftStart = REACTION_BUFFER_MIN + random(EARLY_IN_MIN..EARLY_IN_MAX)  (min 10)
+#   after  shiftEnd   =                       random(LATE_OUT_MIN..LATE_OUT_MAX)
+# REACTION_BUFFER_MIN = "10"     # guaranteed minutes before the shift (failure headroom)
+# PUNCH_EARLY_IN_MIN  = "1"      # extra random minutes early — low end
+# PUNCH_EARLY_IN_MAX  = "15"     #                            — high end
+# PUNCH_LATE_OUT_MIN  = "1"      # random minutes late for clock-out — low end
+# PUNCH_LATE_OUT_MAX  = "15"     #                                   — high end
+# GPS_JITTER_METERS   = "12"     # random position wobble per punch, in metres
