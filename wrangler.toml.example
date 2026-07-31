@@ -1,7 +1,10 @@
 name = "apolloxe-mayohr-punch"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
-workers_dev = false             # cron-only Worker → no public *.workers.dev URL
+# Minimal exposure: this Worker has no fetch handler (cron/alarm only), so it needs
+# no public URL at all. Disable both kinds Cloudflare would otherwise hand out:
+workers_dev = false             # no *.workers.dev route
+preview_urls = false            # no per-version preview URLs (…-<worker>.workers.dev)
 
 # Copy this file to `wrangler.toml` and fill in your own values, then deploy.
 # `wrangler.toml` is gitignored so your real office id / coords / login stay
