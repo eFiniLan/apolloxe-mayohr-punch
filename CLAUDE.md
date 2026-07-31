@@ -49,10 +49,12 @@ CLI helpers in `scripts/` call the same `src/` modules so they can't drift from
 deployed behaviour (an earlier duplicated login is what once hid an
 `accept-language` bug; don't recreate that pattern).
 
-Per-cron-fire pipeline (`src/scheduler.ts runScheduler`, the heart of the system):
+Per-cron-fire flow (`src/scheduler.ts runScheduler`, the heart of the Worker):
 
 ```
-login → read today's calendar → workday? → (leave?) → time yet? → punch → exit code / throw
+read KV plan:<today> ─ missing? → login → read calendar → buildPlan (roll targets) → save
+                     └ present? → no MayoHR call
+then decide(plan, now) → in | out | skip → (if punching) login → punch → set done-flag / throw
 ```
 
 - **`auth.ts`** — the 3-step cookie-session login (scrape CSRF `__RequestVerificationToken`
@@ -66,6 +68,9 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 - **`punch.ts`** — POST to the GPS `/locate` endpoint. Response is
   **self-verifying** (`Meta.HttpStatusCode==="200"` + `Data.AttendanceHistoryId`),
   so there is no read-back step. Maps server errors to outcomes.
+- **`plan.ts`** — the Worker's per-day plan: `buildPlan` (roll the randomized
+  clock-in/out targets once, from that day's shift), `decide` (in/out/skip for a
+  wall-clock time), `read/savePlan` (KV). Pure + storage-thin → unit-tested directly.
 - **`scheduler.ts`, `time.ts`, `config.ts`** — orchestration, pure time math,
   env→Config. Success/failure is signaled by `punch.ts summarize()` — the CLI via
   exit codes, the Worker by throwing (no email).
@@ -74,22 +79,24 @@ login → read today's calendar → workday? → (leave?) → time yet? → punc
 
 ### Two design decisions that everything hangs on
 
-1. **Stateless by default, optional KV.** MayoHR itself is the source of truth. A
-   duplicate punch returns `already_done`; a punch <~10 min after another returns
-   `cooldown`. The scheduler treats both as "a punch already happened → stay quiet",
-   so the cron can fire every 5 min safely and re-login each time. Binding a KV
-   namespace (`APOLLO_KV`) enables the Worker to cache the session cookie (9-day
-   TTL, validate-before-use) and calendar via the shared `runPunch`/`getDay` core;
-   unbound, it stays stateless. Either way, server idempotency is the Worker's
-   safety net. Any feature reaching for stored state should first ask whether
-   server idempotency covers it.
+1. **KV-backed daily plan (KV is required).** The Worker requires a bound
+   `APOLLO_KV`. The first fire of the day writes `plan:<date>` (randomized
+   clock-in/out targets + done-flags); later fires read it with **no MayoHR call**
+   and punch only when a target arrives — so an all-day `*/10` cron stays cheap and
+   gentle on Mayo. MayoHR is still the idempotency source of truth: a duplicate
+   punch returns `already_done`, a too-soon one `cooldown`, both "already happened →
+   stay quiet". KV also caches the session cookie (9-day TTL, validate-before-use)
+   and calendar via the shared `getDay`/`runPunch` core. Login is deferred — a
+   "waiting" fire never authenticates.
 
-2. **Direction and timing are derived, not stored.** `hhmm < "12:00"` ⇒ clock-in,
-   else clock-out. Clock-in is guaranteed **early** (target = `shiftStart −
-   max(CRON_STEP_MIN, reactionBufferMin + random)`), clock-out guaranteed **late**
-   — by construction, not by post-hoc checks. `CRON_STEP_MIN` (5) must stay in
-   sync with `wrangler.toml` `crons` (`*/5`); it guarantees a tick lands in
-   `[target, shiftStart)`.
+2. **Direction and timing come from the plan, not a fixed window.** Both are
+   derived from that day's actual shift and frozen into the plan — the random
+   offsets are rolled **once** (in `buildPlan`) so the punch time is stable and
+   human-looking, not re-rolled every fire. No noon split. Clock-in is guaranteed
+   **early** (`inTarget = shiftStart − max(CRON_STEP_MIN, reactionBufferMin +
+   random)`), clock-out **late**. `CRON_STEP_MIN` (10, in `src/plan.ts`) must stay
+   in sync with `wrangler.toml` `crons` (`*/10`); it guarantees a poll lands in
+   `[inTarget, shiftStart)` so clock-in never slips past the shift start.
 
 ### Testability convention
 

@@ -1,9 +1,10 @@
 import type { Env } from "./index";
 import { loadConfig } from "./config";
-import { nowParts, addMinutes, randInt } from "./time";
+import { nowParts } from "./time";
 import { acquireSession as realAcquireSession, getDay as realGetDay } from "./flow";
 import type { CacheStore } from "./cache-store";
 import { punch as realPunch, summarize } from "./punch";
+import { buildPlan, decide, readPlan, savePlan } from "./plan";
 
 export interface Deps {
   acquireSession: typeof realAcquireSession;
@@ -14,74 +15,56 @@ export interface Deps {
   rand?: () => number;
 }
 
-// The cron cadence (minutes). Clock-in's latest target is kept at least this far
-// before the shift so a fire is guaranteed to land in [target, shiftStart).
-// Keep in sync with wrangler.toml `crons` (*/5).
-const CRON_STEP_MIN = 5;
-
 /**
- * One cron fire. Stateless when `store` is null (the default); with a KV
- * `store` bound it reuses the cached cookie/calendar. The server is still the
- * source of truth: login → read today's calendar → (if it's time) punch in/out.
- * Direction is decided by time of day (morning = in, evening = out). The punch
- * is attempted a randomized amount before/after the scheduled boundary, always
- * early-in / late-out. Idempotency comes from the server: `already_done` and
- * `cooldown` both mean "a punch already happened", so we stay quiet. A genuine
- * failure throws — marking the cron invocation failed (visible in the dashboard
- * / `wrangler tail`); success / already_done / cooldown return quietly.
+ * One cron fire, plan-driven. Requires a KV `store`. The first fire of the day
+ * reads that day's calendar and writes a "plan" (randomized clock-in/out targets,
+ * done-flags) to KV; every later fire just reads the plan — no MayoHR call — and
+ * punches only when a target time arrives. Direction and timing come from the
+ * plan (the actual shift), so any single-day schedule works. Login is deferred:
+ * a "waiting" fire never authenticates. Idempotency still comes from the server
+ * (already_done / cooldown both count as done); a genuine failure throws, marking
+ * the invocation failed (visible in `wrangler tail` / the dashboard).
  */
 export async function runScheduler(env: Env, deps: Partial<Deps> = {}): Promise<void> {
-  const d = {
-    acquireSession: realAcquireSession,
-    getDay: realGetDay,
-    punch: realPunch,
-    ...deps,
-  };
+  const d = { acquireSession: realAcquireSession, getDay: realGetDay, punch: realPunch, ...deps };
   const cfg = loadConfig(env);
   const now = deps.now ?? new Date();
   const rand = deps.rand ?? Math.random;
+  const store = deps.store ?? null;
+  if (!store) {
+    throw new Error("APOLLO_KV is required: bind a KV namespace in wrangler.toml (the scheduler stores its daily plan there)");
+  }
   const { dateKey, hhmm } = nowParts(cfg.timezone, now);
-  const direction: "in" | "out" = hhmm < "12:00" ? "in" : "out";
 
-  const { session } = await d.acquireSession(cfg, d.store ?? null);
-  const { info } = await d.getDay(session, cfg, d.store ?? null, dateKey);
+  // Log in at most once, and only when actually needed (plan build or punch).
+  let session: Awaited<ReturnType<typeof d.acquireSession>>["session"] | null = null;
+  const getSession = async () => (session ??= (await d.acquireSession(cfg, store)).session);
 
-  if (!info.isWorkday) {
-    console.log(`apollo: ${dateKey} — skipped, not a workday`);
-    return; // weekend / holiday
+  // First fire of the day builds the plan from the calendar; later fires reuse it.
+  let plan = await readPlan(store, dateKey);
+  if (!plan) {
+    const { info } = await d.getDay(await getSession(), cfg, store, dateKey);
+    plan = buildPlan(info, cfg, rand); // throws on a workday with no shift time
+    await savePlan(store, dateKey, plan);
   }
-  if (cfg.respectLeave && info.onLeave) {
-    console.log(`apollo: ${dateKey} — skipped, on approved leave`);
+
+  const action = decide(plan, hhmm);
+  if (action === "skip") {
+    if (!plan.workday) {
+      console.log(`apollo: ${dateKey} — skipped, ${plan.skipReason}`);
+    } else {
+      const inS = `in ${plan.inTarget}${plan.inDone ? " done" : ""}`;
+      const outS = `out ${plan.outTarget}${plan.outDone ? " done" : ""}`;
+      console.log(`apollo: ${dateKey} ${hhmm} — waiting (${inS}, ${outS})`);
+    }
     return;
   }
 
-  // Clock-in needs the shift START; clock-out needs the shift END. A workday
-  // missing the relevant time is an anomaly — fail the run rather than skip silently.
-  const boundary = direction === "in" ? info.shiftStart : info.shiftEnd;
-  if (!boundary) {
-    throw new Error(
-      `clock-${direction} ${dateKey}: workday but no scheduled ${direction === "in" ? "start" : "end"} time — punch manually`,
-    );
-  }
-
-  // Randomized target. Clock-in is ALWAYS early: at least `reactionBufferMin`
-  // before the shift (so a failure alert has buffer) AND at least CRON_STEP_MIN
-  // before it — the latter guarantees a 5-min cron tick lands in
-  // [target, shiftStart), so the punch can never slip past the shift even if
-  // reactionBufferMin/earlyIn are configured small. Clock-out is simply after
-  // shiftEnd (no upper bound to guarantee).
-  const target =
-    direction === "in"
-      ? addMinutes(boundary, -Math.max(CRON_STEP_MIN, cfg.reactionBufferMin + randInt(cfg.earlyIn.min, cfg.earlyIn.max, rand)))
-      : addMinutes(boundary, randInt(cfg.lateOut.min, cfg.lateOut.max, rand));
-
-  if (hhmm < target) {
-    console.log(`apollo: clock-${direction} ${dateKey} — not time yet (${hhmm} < target ${target})`);
-    return;
-  }
-
-  const r = await d.punch(session, cfg, direction);
-  const { ok, reason } = summarize(direction, r);
-  if (!ok) throw new Error(`${reason} (${dateKey})`); // fails the invocation; retries next cron fire
-  console.log(`apollo: clock-${direction} ${dateKey} — ${reason}${cfg.dryRun ? " (DRY_RUN)" : ""}`);
+  const r = await d.punch(await getSession(), cfg, action);
+  const { ok, reason } = summarize(action, r);
+  if (!ok) throw new Error(`${reason} (${dateKey})`); // fails the invocation; retries next fire
+  if (action === "in") plan.inDone = true;
+  else plan.outDone = true;
+  await savePlan(store, dateKey, plan);
+  console.log(`apollo: clock-${action} ${dateKey} — ${reason}${cfg.dryRun ? " (DRY_RUN)" : ""}`);
 }

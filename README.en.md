@@ -20,25 +20,30 @@ CLI does exactly that, on command. Run it automatically and the optional Worker
 wraps that same core with cron timing:
 
 ```
-login → read today's calendar → workday? ──no─→ skip (weekend/holiday)
-                                   │yes
-                                   ▼
-                         on leave? ──(RESPECT_LEAVE=true)─→ skip
-                                   │ default: no
-                                   ▼
-          clock in  = shiftStart − (buffer + random early)   → always EARLY
-          clock out = shiftEnd   + random late               → always LATE
-          each punch: GPS office coords + small random jitter, verified by the
-          server's response (AttendanceHistoryId).
+first fire of the day → read calendar → workday? ──no─→ save "skip" plan (weekend/holiday)
+                                            │yes
+                                            ▼
+                    build plan for today (stored in KV):
+                      clock in  = shiftStart − (buffer + random early)   → always EARLY
+                      clock out = shiftEnd   + random late               → always LATE
+                    (random offsets rolled ONCE, so the punch time is stable + human)
+
+every fire → read today's plan from KV (no MayoHR call) → is a target due?
+                                          │yes            │no → wait
+                                          ▼
+             punch (GPS office coords + jitter, verified by AttendanceHistoryId),
+             mark it done in the plan so it won't punch twice.
 ```
 
-- **Stateless — no KV.** The Worker keeps no state. MayoHR itself is the source of
-  truth: a second punch returns `already_done` (already punched today) or a
-  `cooldown` (punched <~10 min ago), both of which the Worker treats as "done" and
-  stays quiet. So the cron can fire every 5 min safely.
+- **KV-backed daily plan.** The cron fires every 10 min all day; the first fire
+  reads that day's shift and writes a *plan* to KV, and later fires just read the
+  plan — no login — punching only when a target time arrives. Because the plan
+  comes from the *actual* calendar, **any schedule works** — different start/end
+  every day, no fixed window to keep in sync. (KV is required.)
+- **Idempotent.** MayoHR is still the source of truth: a second punch returns
+  `already_done` or `cooldown`, both treated as "done", so nothing double-punches.
 - **Reaction buffer:** clock-in is attempted `≥ REACTION_BUFFER_MIN` before your
   shift, so if it genuinely fails you find out (a failed run / exit code) with time to punch manually.
-- Shift times come from Mayo's calendar, so flex/variable schedules just work.
 
 > **Note.** Your company IP-restricts the *web* punch (office/VPN only). This uses
 > the *GPS* punch, sending your office coordinates from a cloud server. That
@@ -128,28 +133,35 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler login
    ```
-2. **Set the password secret** (the only secret — `MAYO_USERNAME` lives in
+2. **Create the KV namespace** (required — the scheduler stores its daily plan and
+   caches the cookie/calendar there) and paste the printed id into `wrangler.toml`:
+   ```bash
+   npx wrangler kv namespace create APOLLO_KV
+   # → copy the id into the [[kv_namespaces]] block in wrangler.toml
+   ```
+3. **Set the password secret** (the only secret — `MAYO_USERNAME` lives in
    `wrangler.toml`; the password never touches a file or argv):
    ```bash
    npx wrangler secret put MAYO_PASSWORD
    ```
-3. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs
-   the whole flow (login → calendar → plan) but **never actually punches**:
+4. **Deploy in DRY-RUN first.** `wrangler.toml` ships `DRY_RUN = "true"`, so it runs
+   the whole flow (calendar → plan → decision) but **never actually punches**:
    ```bash
    npx wrangler deploy
    ```
-4. **Watch a real shift window.** Cron windows (Taipei): **08:00–09:55** (in) and
-   **18:00–19:55** (out) — matching a 09:30–18:30 shift.
+5. **Watch a workday.** The cron fires every 10 min, all day — the interesting
+   moments are your clock-in and clock-out targets:
    ```bash
    npx wrangler tail
    ```
-   The skip-reason logs show exactly what it's doing:
+   The logs show exactly what it's doing (times are Taipei):
    ```
-   apollo: 2026-07-31 09:00 — not time yet (09:00 < target 09:19)
+   apollo: 2026-07-31 08:40 — waiting (in 09:14, out 18:37)
    apollo: clock-in 2026-07-31 — recorded … (DRY_RUN)
+   apollo: 2026-07-31 13:00 — waiting (in 09:14 done, out 18:37)
    apollo: 2026-08-02 — skipped, not a workday
    ```
-5. **Go live** — only once the DRY_RUN plan looks right. Flip the flag and redeploy:
+6. **Go live** — only once the DRY_RUN plan looks right. Flip the flag and redeploy:
    ```toml
    # wrangler.toml
    DRY_RUN = "false"
@@ -159,23 +171,13 @@ cp wrangler.toml.example wrangler.toml
    ```
    > ⚠️ This is the real thing — the Worker now actually auto-punches, unattended.
    > Sit on the DRY_RUN deploy for a day and read `tail` before you flip it.
-6. **Verify the first real workday** via `wrangler tail`, and check Apollo shows
+7. **Verify the first real workday** via `wrangler tail`, and check Apollo shows
    exactly one in + one out.
 
-> Being stateless, each cron fire does a fresh login + calendar read (≈ up to ~48
-> logins/day across both windows). That's the trade for having no KV. If you want to
-> cut that, narrow the `crons` windows in `wrangler.toml` to just around your shift.
-
-**Optional — cache across fires with KV.** Bind a KV namespace and the Worker
-reuses the login cookie (≈1 login / 9 days instead of ~48/day) and the calendar,
-via the same `runPunch` building blocks the CLI uses:
-```bash
-npx wrangler kv namespace create APOLLO_KV
-# paste the printed id into the [[kv_namespaces]] block in wrangler.toml (uncomment it)
-npx wrangler deploy
-```
-Unbound, the Worker stays stateless (today's behavior) — server-side idempotency
-still prevents double punches either way.
+> **How it stays cheap.** ~144 fires/day sounds like a lot, but only the *first*
+> fire of the day reads the calendar, and only two fires actually punch — every
+> other fire is a single KV read with no login. Well within Cloudflare's free
+> 100k/day, and gentle on MayoHR.
 
 ### Worker gotchas
 
@@ -212,7 +214,8 @@ still prevents double punches either way.
 - `src/` — `config`, `auth`, `calendar`, `punch`, `locations`, `time`,
   `calendar-cache`, `session-cache` (validate-before-use cookie cache),
   `cache-store` (shared `CacheStore`), `flow` (`runPunch`/`acquireSession`/`getDay` — the reusable core), `kv-store`
-  (KV `CacheStore` for the Worker), `scheduler` + `index` (the Worker).
+  (KV `CacheStore` for the Worker), `plan` (the Worker's per-day KV plan: targets + done-flags),
+  `scheduler` + `index` (the Worker).
 - `scripts/` — local CLI helpers, built on the **same `src/` modules** the Worker
   runs (so they can't drift from deployed behaviour): `punch-now.ts` (manual
   clock in/out), `calendar-cli.ts` (`npm run calendar` — read-only workday/shift

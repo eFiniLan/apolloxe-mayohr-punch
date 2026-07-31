@@ -7,26 +7,22 @@ compatibility_date = "2024-12-30"
 # out of the repo. MAYO_PASSWORD is never here — set it with:
 #   npx wrangler secret put MAYO_PASSWORD
 
-# Stateless — no KV. Idempotency comes from the server (already_done / cooldown).
-
-# Optional: cache the login cookie + calendar across fires (≈1 login / 9 days
-# instead of ~48/day). Without this the Worker is stateless (server idempotency).
+# REQUIRED. The scheduler stores its per-day plan (randomized punch targets +
+# done-flags) here, and also caches the login cookie + calendar across fires.
+# Create the namespace once, then paste its id below:
 #   npx wrangler kv namespace create APOLLO_KV
-# then uncomment and paste the printed id:
-# [[kv_namespaces]]
-# binding = "APOLLO_KV"
-# id = "<id>"
+[[kv_namespaces]]
+binding = "APOLLO_KV"
+id = "<paste-your-kv-namespace-id>"
 
-# Cron is UTC; Taiwan = UTC+8. Fires EVERY day (not just Mon–Fri) so makeup
-# workdays (補班) on weekends still run — the calendar's isWorkday decides whether
-# to actually punch, so weekends/holidays self-skip after one cheap check. Each
-# fire attempts a punch only once it's past the randomized target time.
-#   00:00–01:55 UTC = 08:00–09:55 Taipei  → clock-in
-#   10:00–11:55 UTC = 18:00–19:55 Taipei  → clock-out
-# (Aligns with default shift 09:30/18:30 + early-in/late-out jitter. If your shift
-#  is much earlier/later, widen these UTC windows to cover it.)
+# Fire every 10 min, all day, every day. The first fire of the day reads that
+# day's shift into a KV "plan" (randomized clock-in/out targets); every later fire
+# just reads the plan and punches when a target arrives. Timing AND direction come
+# from the calendar, so ANY single-day schedule works — no fixed window to keep in
+# sync with your shift. Non-workdays self-skip after one cheap check.
+# (Keep */10 in sync with CRON_STEP_MIN in src/plan.ts.)
 [triggers]
-crons = ["*/5 0-1 * * *", "*/5 10-11 * * *"]
+crons = ["*/10 * * * *"]
 
 # Config. Optional tuning vars (jitter, early/late minutes, reaction buffer,
 # RESPECT_LEAVE) have sane code defaults — see the README's Configuration table to
