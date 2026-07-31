@@ -1,6 +1,7 @@
 name = "apolloxe-mayohr-punch"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
+workers_dev = false             # cron-only Worker → no public *.workers.dev URL
 
 # Copy this file to `wrangler.toml` and fill in your own values, then deploy.
 # `wrangler.toml` is gitignored so your real office id / coords / login stay
