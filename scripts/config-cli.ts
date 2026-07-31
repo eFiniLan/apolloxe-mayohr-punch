@@ -1,17 +1,20 @@
-// Config CLI: set credentials/location/coords into .dev.vars without hand-editing,
-// and show the effective config. Reuses the same src/ modules the punch uses.
+// Config CLI: set login/location/coords/toggles, and show the effective config.
+// Reuses the same src/ modules the punch uses.
 //
-//   npm run config set username <email>
-//   npm run config set password            # prompted, hidden (never echoed / in shell history)
-//   npm run config set location <id>       # or run with no id to list your locations
-//   npm run config set pos <lat> <lng>
-//   npm run config list
+//   npm run config set username <email>    # → wrangler.toml [vars]
+//   npm run config set password            # → .dev.vars (prompted, hidden)
+//   npm run config set location <id>       # → wrangler.toml (no id = list your locations)
+//   npm run config set pos <lat> <lng>     # → wrangler.toml
+//   npm run config set calendar|session on|off   # → wrangler.toml
+//   npm run config                         # show effective config
 //
-// Writes to .dev.vars (or APOLLO_DEV_VARS) at mode 0600. No id/value validation.
+// Non-secret config is single-sourced in wrangler.toml [vars] (shared with the
+// deployed Worker); only the password goes to .dev.vars (mode 0600). No validation.
 import { readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
 import * as readline from "node:readline";
 import { buildEntries, upsertEnvVars, FIELDS, BOOLEAN_FIELDS, normalizeBool } from "./dev-vars";
-import { readDevVars, DEV_VARS_PATH, localConfig } from "./_env";
+import { upsertTomlVars } from "./wrangler-vars";
+import { DEV_VARS_PATH, WRANGLER_PATH, mergedEnv, localConfig } from "./_env";
 import { loadConfig } from "../src/config";
 import { acquireSession } from "../src/flow";
 import { fileStore } from "./cache-fs";
@@ -19,20 +22,16 @@ import { getLocations, formatLocations } from "../src/locations";
 
 const USAGE =
   "Usage:\n" +
-  "  npm run config set username <email>\n" +
-  "  npm run config set password            # prompted, hidden\n" +
-  "  npm run config set location [<PunchesLocationId>]   # no id = list your locations\n" +
-  "  npm run config set pos <lat> <lng>\n" +
+  "  npm run config set username <email>    # → wrangler.toml\n" +
+  "  npm run config set password            # → .dev.vars (prompted, hidden)\n" +
+  "  npm run config set location [<PunchesLocationId>]   # → wrangler.toml (no id = list)\n" +
+  "  npm run config set pos <lat> <lng>     # → wrangler.toml\n" +
   "  npm run config set calendar on|off     # check today's shift before punching\n" +
   "  npm run config set session on|off      # reuse the cached login cookie";
 
 function usage(): never {
   console.error(USAGE);
   process.exit(1);
-}
-
-function mergedEnv(): Record<string, string> {
-  return { ...readDevVars(), ...(process.env as Record<string, string>) };
 }
 
 function ensureCreds(env: Record<string, string>): void {
@@ -64,9 +63,8 @@ function promptHidden(query: string): Promise<string> {
   });
 }
 
-function writeDevVars(contents: string): void {
-  writeFileSync(DEV_VARS_PATH, contents, { mode: 0o600 });
-  chmodSync(DEV_VARS_PATH, 0o600); // enforce secret perms even if the file pre-existed
+function readOr(path: string): string {
+  return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
 async function cmdSet(field: string, values: string[]): Promise<void> {
@@ -74,8 +72,7 @@ async function cmdSet(field: string, values: string[]): Promise<void> {
 
   // `set location` with no id → list what's available (needs login).
   if (field === "location" && values.length === 0) {
-    const env = mergedEnv();
-    ensureCreds(env);
+    ensureCreds(mergedEnv());
     const { cfg } = localConfig();
     console.log(`Logging in as ${cfg.userName}…`);
     const { session } = await acquireSession(cfg, fileStore);
@@ -114,30 +111,28 @@ async function cmdSet(field: string, values: string[]): Promise<void> {
     usage();
   }
 
-  const existed = existsSync(DEV_VARS_PATH);
-  const current = existed ? readFileSync(DEV_VARS_PATH, "utf8") : "";
-  writeDevVars(upsertEnvVars(current, entries));
+  // The password is the one secret → .dev.vars (mode 0600). Everything else is
+  // non-secret → wrangler.toml [vars] (the single source shared with the Worker).
+  const toDevVars = field === "password";
+  const path = toDevVars ? DEV_VARS_PATH : WRANGLER_PATH;
+  const updated = toDevVars
+    ? upsertEnvVars(readOr(DEV_VARS_PATH), entries)
+    : upsertTomlVars(readOr(WRANGLER_PATH), entries);
+  writeFileSync(path, updated, toDevVars ? { mode: 0o600 } : undefined);
+  if (toDevVars) chmodSync(path, 0o600); // enforce secret perms even if the file pre-existed
 
   const shown = Object.entries(entries)
-    .map(([k, v]) => `${k}=${field === "password" ? "••••••" : v}`)
+    .map(([k, v]) => `${k}=${toDevVars ? "••••••" : v}`)
     .join("  ");
-  console.log(`✓ Set ${shown} in ${DEV_VARS_PATH}`);
-  if (!existed) {
-    console.log("  (created the file — MAYO_USERNAME and MAYO_PASSWORD are both required to punch)");
-  }
+  console.log(`✓ Set ${shown} in ${path}`);
 }
 
 function cmdList(): void {
   const env = mergedEnv();
-  // loadConfig requires creds; stub them just to read location/pos/timezone
-  // defaults. Real creds status is reported separately from `env`.
-  const cfg = loadConfig({
-    MAYO_USERNAME: "x",
-    MAYO_PASSWORD: "x",
-    ...env,
-  } as never);
+  // loadConfig requires creds; stub them just to read location/pos/timezone.
+  const cfg = loadConfig({ MAYO_USERNAME: "x", MAYO_PASSWORD: "x", ...env } as never);
 
-  console.log("Effective config (env > .dev.vars > defaults):\n");
+  console.log("Effective config (env > .dev.vars > wrangler.toml > defaults):\n");
   console.log(`  username : ${env.MAYO_USERNAME || "(not set)"}`);
   console.log(`  password : ${env.MAYO_PASSWORD ? "••••••" : "(not set)"}`);
   console.log(`  location : ${cfg.punchesLocationId}`);
@@ -145,7 +140,8 @@ function cmdList(): void {
   console.log(`  timezone : ${cfg.timezone}`);
   console.log(`  calendar : ${cfg.calendarCheck ? "on" : "off"}`);
   console.log(`  session  : ${cfg.sessionCache ? "on" : "off"}`);
-  console.log(`\n  source   : ${DEV_VARS_PATH}`);
+  console.log(`\n  non-secret → ${WRANGLER_PATH}`);
+  console.log(`  password   → ${DEV_VARS_PATH}`);
 }
 
 const [cmd, field, ...values] = process.argv.slice(2);

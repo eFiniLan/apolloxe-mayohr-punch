@@ -54,14 +54,17 @@ few moments that matter:
 npm install
 ```
 
-1. **Credentials** — via env (`export`) or the config CLI (writes gitignored `.dev.vars`):
+1. **Credentials.** All non-secret config lives in **`wrangler.toml [vars]`** (the
+   single source, shared with the Worker); only the **password** goes to the
+   gitignored **`.dev.vars`**. Set both with the config CLI:
    ```bash
-   export MAYO_USERNAME=you@company.com MAYO_PASSWORD=…    # or:
-   npm run config set username you@company.com
-   npm run config set password            # prompted, hidden — never argv/history
+   npm run config set username you@company.com    # → wrangler.toml [vars]
+   npm run config set password                    # → .dev.vars (prompted, hidden)
    ```
-   Precedence is **env > `.dev.vars` > defaults**, so `export` overrides the file.
-   The password is never taken as a CLI argument (it would leak to shell history / `ps`).
+   Precedence is **env > `.dev.vars` > `wrangler.toml [vars]` > defaults**, so an
+   `export` overrides either file. The password is never taken as a CLI argument
+   (it would leak to shell history / `ps`) — and never goes in `wrangler.toml`,
+   which `wrangler deploy` uploads as plaintext.
 
 2. **Pick your punch location** (which office to report):
    ```bash

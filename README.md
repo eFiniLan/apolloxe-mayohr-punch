@@ -47,14 +47,15 @@
 npm install
 ```
 
-1. **憑證** — 用環境變數（`export`）或 config CLI（會寫入被 gitignore 的 `.dev.vars`）：
+1. **憑證。** 所有非機密設定都放在 **`wrangler.toml [vars]`**（唯一來源，與 Worker 共用）；
+   只有**密碼**放在被 gitignore 的 **`.dev.vars`**。用 config CLI 設定：
    ```bash
-   export MAYO_USERNAME=you@company.com MAYO_PASSWORD=…    # 或：
-   npm run config set username you@company.com
-   npm run config set password            # 會提示輸入、不回顯 — 不會進 argv／shell 歷史
+   npm run config set username you@company.com    # → wrangler.toml [vars]
+   npm run config set password                    # → .dev.vars（提示輸入、不回顯）
    ```
-   優先順序為 **環境變數 > `.dev.vars` > 程式預設值**，所以 `export` 會覆蓋檔案。
-   密碼絕不透過命令列參數傳入（那會外洩到 shell 歷史／`ps`）。
+   優先順序為 **環境變數 > `.dev.vars` > `wrangler.toml [vars]` > 程式預設值**，所以 `export`
+   會覆蓋兩個檔案。密碼絕不透過命令列參數傳入（會外洩到 shell 歷史／`ps`），也絕不放進
+   `wrangler.toml` — 因為 `wrangler deploy` 會把 `[vars]` 以明文上傳。
 
 2. **選擇打卡地點**（要回報哪個辦公室）：
    ```bash

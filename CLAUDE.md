@@ -34,14 +34,16 @@ punch is intended.
 
 ## Credentials & config
 
-- **Local** (CLI helpers + `wrangler dev`): a gitignored `.dev.vars` in the root,
-  `MAYO_USERNAME` / `MAYO_PASSWORD`. This is the single local credential store —
-  do not reintroduce a second one (there used to be a `probe/secrets.json`; it's
-  gone on purpose).
-- **Deployed**: `wrangler secret put` for `MAYO_*`;
-  non-secret vars live in `wrangler.toml` `[vars]`.
-- Config precedence for CLI: real env vars > `.dev.vars` > code defaults
-  (`scripts/_env.ts`). The Worker reads only `env` (`src/config.ts loadConfig`).
+- **Non-secret config = `wrangler.toml [vars]`, single source** shared by the CLI
+  and the deployed Worker (username, location, coords, timezone, toggles, DRY_RUN…).
+  The CLI reads it via `scripts/wrangler-vars.ts parseTomlVars` (`scripts/_env.ts`);
+  `config set` (except password) writes it via `upsertTomlVars`. Don't reintroduce a
+  second non-secret store — the point is one file.
+- **Password only** lives in the gitignored `.dev.vars` (local, mode 0600; also read
+  by `wrangler dev`) and, for the deployed Worker, `wrangler secret put MAYO_PASSWORD`.
+  It must never go in `wrangler.toml` — `wrangler deploy` uploads `[vars]` as plaintext.
+- **CLI precedence**: real env > `.dev.vars` > `wrangler.toml [vars]` > code defaults
+  (`scripts/_env.ts mergedEnv`). The Worker reads only `env` (`src/config.ts loadConfig`).
 
 ## Architecture
 
