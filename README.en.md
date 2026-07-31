@@ -111,6 +111,27 @@ Worker doesn't email; a failed punch **throws**, marking the cron invocation fai
 in the Cloudflare dashboard / `wrangler tail` — wire a Cloudflare Notification if
 you want to be alerted.
 
+## Configuration
+
+Everything except the **password** is plain config, no secrets. For the **Worker**
+these live in `wrangler.toml [vars]`; for the **CLI** they come from the environment
+or `.dev.vars` (`npm run config set …`). All optional except `MAYO_USERNAME` +
+`MAYO_PASSWORD` — and only the password is ever a `wrangler secret`.
+
+| Var | Default | Meaning |
+|-----|---------|---------|
+| `MAYO_USERNAME` | — | login email (a var, not a secret) |
+| `PUNCHES_LOCATION_ID` | placeholder | office location id — `npm run config set location` lists them |
+| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | placeholder | reported coordinates (must match the location) |
+| `TIMEZONE` | `Asia/Taipei` | shift-time timezone |
+| `GPS_JITTER_METERS` | `12` | random shift radius per punch |
+| `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early, on top of the buffer |
+| `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
+| `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before the shift |
+| `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
+| `DRY_RUN` | `true` | run the flow but never punch |
+| `MAYO_PASSWORD` | — | **secret** — `wrangler secret put` (deployed) / `.dev.vars` (local); never a var |
+
 ## Deploy the Worker (optional)
 
 The Worker is optional. If you want hands-off automation, here's the safe path.
@@ -198,20 +219,6 @@ cp wrangler.toml.example wrangler.toml
 - **The Cloudflare dashboard shows times in UTC** (Taipei = UTC+8). An event at
   "11:15" there is 19:15 Taipei. The Worker's own log lines print Taipei time, so
   read those when in doubt.
-
-## Configuration (all optional except secrets)
-
-| Var | Default | Meaning |
-|-----|---------|---------|
-| `TIMEZONE` | `Asia/Taipei` | shift-time timezone |
-| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | placeholder | reported coordinates — set yours |
-| `PUNCHES_LOCATION_ID` | placeholder | office location id — set via `config set location` |
-| `GPS_JITTER_METERS` | `12` | random shift radius per punch |
-| `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | minutes early (on top of buffer) |
-| `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | minutes late for clock-out |
-| `REACTION_BUFFER_MIN` | `10` | clock in at least this many min before shift (so a failed run is visible with time to punch manually) |
-| `RESPECT_LEAVE` | `false` | `true` = skip full-day-leave days |
-| `DRY_RUN` | `true` | run the pipeline but never punch |
 
 ## Layout
 

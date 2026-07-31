@@ -101,6 +101,26 @@ npm install
 **throw**，把該次 cron 執行標記為失敗（顯示在 Cloudflare 主控台 / `wrangler tail`）—
 若想收到通知，可自行設定 Cloudflare Notification。
 
+## 設定項
+
+除了**密碼**以外，全部都是一般設定、沒有 secret。給 **Worker** 用時放在
+`wrangler.toml [vars]`；給 **CLI** 用時來自環境變數或 `.dev.vars`（`npm run config set …`）。
+除了 `MAYO_USERNAME` ＋ `MAYO_PASSWORD` 之外皆為選用 — 而且只有密碼會是 `wrangler secret`。
+
+| 變數 | 預設 | 意義 |
+|-----|---------|---------|
+| `MAYO_USERNAME` | — | 登入 email（是 var，不是 secret） |
+| `PUNCHES_LOCATION_ID` | 佔位值 | 辦公室地點 id — `npm run config set location` 可列出 |
+| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | 佔位值 | 回報的座標（要與地點相符） |
+| `TIMEZONE` | `Asia/Taipei` | 班表時間的時區 |
+| `GPS_JITTER_METERS` | `12` | 每次打卡的隨機位移半徑 |
+| `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | 提早分鐘數（在緩衝之上） |
+| `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | 下班延後分鐘數 |
+| `REACTION_BUFFER_MIN` | `10` | 至少在班表前這麼多分鐘打卡 |
+| `RESPECT_LEAVE` | `false` | `true` = 略過整天請假的日子 |
+| `DRY_RUN` | `true` | 跑完整流程但絕不真的打卡 |
+| `MAYO_PASSWORD` | — | **secret** — `wrangler secret put`（部署）／`.dev.vars`（本機）；絕不是 var |
+
 ## 部署 Worker（選用）
 
 Worker 是選用的。若你想要免動手的自動化，這是安全的做法。
@@ -180,20 +200,6 @@ cp wrangler.toml.example wrangler.toml
   同時打卡。
 - **Cloudflare 主控台顯示的是 UTC 時間**（台北 = UTC+8）。主控台上「11:15」的事件其實是台北
   19:15。Worker 自己的日誌印的是台北時間，有疑問時以那個為準。
-
-## 設定項（除 secrets 外皆為選用）
-
-| 變數 | 預設 | 意義 |
-|-----|---------|---------|
-| `TIMEZONE` | `Asia/Taipei` | 班表時間的時區 |
-| `PUNCH_LATITUDE` / `PUNCH_LONGITUDE` | 佔位值 | 回報的座標 — 請自行設定 |
-| `PUNCHES_LOCATION_ID` | 佔位值 | 辦公室地點 id — 用 `config set location` 設定 |
-| `GPS_JITTER_METERS` | `12` | 每次打卡的隨機位移半徑 |
-| `PUNCH_EARLY_IN_MIN` / `_MAX` | `1` / `15` | 提早分鐘數（在緩衝之上） |
-| `PUNCH_LATE_OUT_MIN` / `_MAX` | `1` / `15` | 下班延後分鐘數 |
-| `REACTION_BUFFER_MIN` | `10` | 至少在班表前這麼多分鐘打卡（讓失敗的執行有時間手動補打） |
-| `RESPECT_LEAVE` | `false` | `true` = 略過整天請假的日子 |
-| `DRY_RUN` | `true` | 跑完整流程但絕不真的打卡 |
 
 ## 專案結構
 
