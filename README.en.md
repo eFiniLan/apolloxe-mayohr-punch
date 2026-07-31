@@ -37,7 +37,7 @@ few moments that matter:
   at the exact instant, the random punch time is real down to the **second** (looks
   human, not on a robotic grid).
 - **Gentle on MayoHR — hit ~3×/day** (calendar, in, out); login is reused from the
-  stored cookie. A once-a-day cron is only a backstop that re-arms the DO if needed.
+  stored cookie. A 6-hourly cron (timezone-agnostic) is only a backstop that re-arms the DO if needed.
 - **Idempotent.** MayoHR is still the source of truth: a second punch returns
   `already_done` or `cooldown`, both treated as "done", so nothing double-punches.
 - **Reaction buffer:** clock-in targets `≥ REACTION_BUFFER_MIN` before your shift, so
@@ -173,9 +173,10 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler deploy
    ```
-   > **When it first runs:** the DO is planned + armed by the daily cron at **00:05
-   > Taipei**. If you deploy *after* that, nothing happens until tonight's 00:05
-   > (which plans tomorrow) — so today stays manual (`npm run punch out`).
+   > **When it first runs:** the cron backstop fires every 6h (00:05/06:05/12:05/18:05
+   > UTC), so the DO is planned + armed within ~6h of deploy. If that first fire lands
+   > mid-workday, today's clock-in is a harmless catch-up (see below); otherwise your
+   > first full auto-day is tomorrow — punch out manually today if needed.
    >
    > **Test it now, without waiting** — run the scheduled handler locally against the
    > live MayoHR API (safe **only while `DRY_RUN="true"`** — a real run would punch):

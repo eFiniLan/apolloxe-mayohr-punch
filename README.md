@@ -157,8 +157,9 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler deploy
    ```
-   > **第一次何時跑：** DO 由每天 **台北 00:05** 的 cron 備援規劃並設定 alarm。若你在那之後才
-   > 部署，今天就不會動，要等今晚 00:05（那會規劃「明天」）— 所以今天仍手動（`npm run punch out`）。
+   > **第一次何時跑：** cron 備援每 6 小時觸發一次（00:05／06:05／12:05／18:05 UTC），所以部署後
+   > 約 6 小時內 DO 就會被規劃並設定 alarm。若第一次剛好落在上班時段，今天的上班卡會是無害的補打
+   > （見下）；否則第一個完整自動日就是明天 — 今天需要的話仍手動 `npm run punch out`。
    >
    > **不用等、現在就測** — 在本機用真實 MayoHR API 跑一次 scheduled handler（**只有在
    > `DRY_RUN="true"` 時才安全** — 正式跑會真的打卡）：

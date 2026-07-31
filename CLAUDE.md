@@ -54,7 +54,7 @@ deployed behaviour (an earlier duplicated login is what once hid an
 `accept-language` bug; don't recreate that pattern).
 
 Per-tick flow (`src/punch-day.ts runTick`, the heart of the Worker — a Durable
-Object whose `alarm()` is a precise timer, plus a daily cron backstop calling
+Object whose `alarm()` is a precise timer, plus a 6-hourly cron backstop calling
 `ensure()`):
 
 ```
@@ -98,9 +98,10 @@ finally setAlarm(nextAlarm(plan)) → next target, else tomorrow 00:05 (past →
    precise timer. Each day it wakes ~3×: build the plan, punch in, punch out — so
    **MayoHR is hit ~3×/day** (calendar + in + out), login amortized via the stored
    cookie. Idempotency is still the server's: `already_done`/`cooldown` both count
-   as done. The cron (`5 16 * * *` = 00:05 Taipei) is only a **backstop** that calls
-   `ensure()`; the DO otherwise re-arms its own alarm (in → out → tomorrow), and a
-   past alarm time (after an outage) fires immediately for catch-up.
+   as done. The cron (`5 */6 * * *`, every 6h UTC — timezone-agnostic, no editing to
+   run elsewhere) is only a **backstop** that calls `ensure()`; the DO otherwise
+   re-arms its own alarm at 00:05 LOCAL (in → out → tomorrow), and a past alarm time
+   (after an outage) fires immediately for catch-up.
 
 2. **Direction and timing come from the shift, frozen once.** `buildDayPlan` reads
    that day's shift and rolls the random early-in/late-out offsets **once**, incl. a

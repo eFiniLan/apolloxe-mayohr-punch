@@ -26,11 +26,12 @@ class_name = "PunchDay"
 tag = "v1"
 new_sqlite_classes = ["PunchDay"]
 
-# Cron is only a daily BACKSTOP (UTC): 16:05 UTC = 00:05 Taipei. It pokes the DO to
-# make sure today is planned + armed; the DO otherwise re-arms its own alarm
-# (in → out → tomorrow), so the real work is alarm-driven, not cron-driven.
+# Cron is only a BACKSTOP (UTC), every 6h — timezone-agnostic, so this works anywhere
+# without editing. It pokes the DO to make sure today is planned + armed and to
+# recover a lost alarm within ~6h. The DO otherwise re-arms its own alarm at 00:05
+# LOCAL (in → out → tomorrow), so the real, to-the-second timing is alarm-driven.
 [triggers]
-crons = ["5 16 * * *"]
+crons = ["5 */6 * * *"]
 
 # Config. Optional tuning vars (jitter, early/late minutes, reaction buffer,
 # RESPECT_LEAVE) have sane code defaults — see the README's Configuration table to
