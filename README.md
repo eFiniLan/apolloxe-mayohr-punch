@@ -131,8 +131,18 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler deploy
    ```
-   > 它會在**下一個台北 00:05**開始運作（cron 備援會規劃當天並設定 alarm）。想立刻啟動，
-   > 可到 Cloudflare 主控台手動觸發一次 scheduled 事件，或直接等今晚。
+   > **第一次何時跑：** DO 由每天 **台北 00:05** 的 cron 備援規劃並設定 alarm。若你在那之後才
+   > 部署，今天就不會動，要等今晚 00:05（那會規劃「明天」）— 所以今天仍手動（`npm run punch out`）。
+   >
+   > **不用等、現在就測** — 在本機用真實 MayoHR API 跑一次 scheduled handler（**只有在
+   > `DRY_RUN="true"` 時才安全** — 正式跑會真的打卡）：
+   > ```bash
+   > npx wrangler dev --test-scheduled
+   > # 然後在另一個 shell：
+   > curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+   > ```
+   > 白天跑會發現上班卡逾期，先嘗試**補打**（若你已上班打卡過，會回無害的 `already_done`），
+   > 再規劃下班卡。
 4. **觀察一個上班日。** DO 一天醒來約 3 次 — 規劃、進、出。在那些時間點 tail：
    ```bash
    npx wrangler tail

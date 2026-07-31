@@ -143,9 +143,19 @@ cp wrangler.toml.example wrangler.toml
    ```bash
    npx wrangler deploy
    ```
-   > It starts working at the **next 00:05 Taipei** (the cron backstop plans the day
-   > and arms the alarm). To kick it off immediately, trigger the scheduled event
-   > once from the Cloudflare dashboard, or just wait for tonight.
+   > **When it first runs:** the DO is planned + armed by the daily cron at **00:05
+   > Taipei**. If you deploy *after* that, nothing happens until tonight's 00:05
+   > (which plans tomorrow) — so today stays manual (`npm run punch out`).
+   >
+   > **Test it now, without waiting** — run the scheduled handler locally against the
+   > live MayoHR API (safe **only while `DRY_RUN="true"`** — a real run would punch):
+   > ```bash
+   > npx wrangler dev --test-scheduled
+   > # then, in another shell:
+   > curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+   > ```
+   > A mid-day run finds clock-in overdue and attempts a **catch-up** punch first
+   > (a harmless `already_done` if you're already clocked in), then plans clock-out.
 4. **Watch a workday.** The DO wakes ~3× — plan, in, out. Tail it around those times:
    ```bash
    npx wrangler tail
