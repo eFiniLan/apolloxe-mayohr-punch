@@ -71,3 +71,20 @@ export function upsertEnvVars(contents: string, entries: Record<string, string>)
   for (const [k, v] of Object.entries(entries)) out = upsertEnvVar(out, k, v);
   return out;
 }
+
+/**
+ * Remove the given keys' assignment lines from dotenv text (comments and other
+ * lines are preserved). Used by `config migrate` to leave only the password.
+ * Empty result → "" (not a lone newline).
+ */
+export function removeEnvVars(contents: string, keys: string[]): string {
+  const drop = new Set(keys);
+  const lines = contents === "" ? [] : contents.replace(/\n$/, "").split("\n");
+  const kept = lines.filter((line) => {
+    const t = line.trim();
+    if (t === "" || t.startsWith("#")) return true;
+    const eq = t.indexOf("=");
+    return eq < 1 || !drop.has(t.slice(0, eq).trim());
+  });
+  return kept.length ? kept.join("\n") + "\n" : "";
+}

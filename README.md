@@ -104,9 +104,13 @@ npm install
 
 ## 設定項
 
-除了**密碼**以外，全部都是一般設定、沒有 secret。給 **Worker** 用時放在
-`wrangler.toml [vars]`；給 **CLI** 用時來自環境變數或 `.dev.vars`（`npm run config set …`）。
-除了 `MAYO_USERNAME` ＋ `MAYO_PASSWORD` 之外皆為選用 — 而且只有密碼會是 `wrangler secret`。
+除了**密碼**以外，全部都是一般設定，放在 **`wrangler.toml [vars]`** — 單一來源，
+Worker 與 CLI 共用（`npm run config set …` 會寫入，或手動編輯）。只有密碼是分開的：
+本機 `.dev.vars` ＋ 部署用 `wrangler secret put`。除了 `MAYO_USERNAME` ＋ `MAYO_PASSWORD`
+之外皆為選用；只有密碼會是 `wrangler secret`。
+
+> **從舊版升級**（設定原本在 `.dev.vars`）？執行一次 `npm run config migrate` —
+> 它會把非機密的設定搬進 `wrangler.toml [vars]`，`.dev.vars` 只留下密碼。
 
 | 變數 | 預設 | 意義 |
 |-----|---------|---------|

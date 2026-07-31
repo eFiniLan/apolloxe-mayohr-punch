@@ -116,10 +116,15 @@ you want to be alerted.
 
 ## Configuration
 
-Everything except the **password** is plain config, no secrets. For the **Worker**
-these live in `wrangler.toml [vars]`; for the **CLI** they come from the environment
-or `.dev.vars` (`npm run config set …`). All optional except `MAYO_USERNAME` +
-`MAYO_PASSWORD` — and only the password is ever a `wrangler secret`.
+Everything except the **password** is plain config in **`wrangler.toml [vars]`** —
+one source, read by both the deployed Worker and the CLI (`npm run config set …`
+writes it, or hand-edit). Only the password is separate: `.dev.vars` locally +
+`wrangler secret put` for the Worker. All optional except `MAYO_USERNAME` +
+`MAYO_PASSWORD`; only the password is ever a `wrangler secret`.
+
+> **Upgrading from an older version** (config in `.dev.vars`)? Run
+> `npm run config migrate` once — it moves the non-secret keys into
+> `wrangler.toml [vars]` and leaves only the password in `.dev.vars`.
 
 | Var | Default | Meaning |
 |-----|---------|---------|

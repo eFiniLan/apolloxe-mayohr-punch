@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { upsertEnvVar, upsertEnvVars, buildEntries, normalizeBool, BOOLEAN_FIELDS } from "../scripts/dev-vars";
+import { upsertEnvVar, upsertEnvVars, removeEnvVars, buildEntries, normalizeBool, BOOLEAN_FIELDS } from "../scripts/dev-vars";
 
 describe("upsertEnvVar", () => {
   it("appends when the key is absent, preserving existing lines", () => {
@@ -83,5 +83,19 @@ describe("boolean toggle fields", () => {
     expect(normalizeBool("OFF")).toBe("false");
     expect(normalizeBool("true")).toBe("true");
     expect(() => normalizeBool("maybe")).toThrow();
+  });
+});
+
+describe("removeEnvVars", () => {
+  it("drops the named keys, keeps comments and the rest", () => {
+    const src = "# header\nMAYO_USERNAME=e@x.com\nMAYO_PASSWORD=secret\nPUNCH_LATITUDE=1.2\n";
+    const out = removeEnvVars(src, ["MAYO_USERNAME", "PUNCH_LATITUDE"]);
+    expect(out).toBe("# header\nMAYO_PASSWORD=secret\n");
+  });
+  it("returns empty string when everything is removed", () => {
+    expect(removeEnvVars("A=1\nB=2\n", ["A", "B"])).toBe("");
+  });
+  it("is a no-op for absent keys", () => {
+    expect(removeEnvVars("MAYO_PASSWORD=x\n", ["MAYO_USERNAME"])).toBe("MAYO_PASSWORD=x\n");
   });
 });
